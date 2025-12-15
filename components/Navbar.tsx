@@ -75,6 +75,7 @@ export const Navbar: React.FC<NavbarProps> = ({ onNavigate, currentView, onLogin
             <button onClick={() => scrollToSection('features')} className="text-gray-600 hover:text-blue-600 font-medium">Features</button>
             <button onClick={() => scrollToSection('pricing')} className="text-gray-600 hover:text-blue-600 font-medium">Pricing</button>
             <button onClick={() => scrollToSection('examples')} className="text-gray-600 hover:text-blue-600 font-medium">Examples</button>
+            <button onClick={() => scrollToSection('contact')} className="text-gray-600 hover:text-blue-600 font-medium">Contact</button>
           </div>
 
           <div className="flex items-center space-x-4">

@@ -4,7 +4,8 @@ export const transformPropertyImage = async (
   base64Image: string,
   prompt: string,
   aspectRatio: string = '4:3',
-  modelName: string = 'gemini-3-pro-image-preview'
+  modelName: string = 'gemini-3-pro-image-preview',
+  imageSize: string = '1K'
 ): Promise<string | null> => {
   try {
     // Initialize inside the function to ensure we capture the latest process.env.API_KEY
@@ -40,6 +41,7 @@ Return ONLY the transformed image data.`,
       config: {
         imageConfig: {
           aspectRatio: aspectRatio,
+          imageSize: imageSize,
         }
       }
     });

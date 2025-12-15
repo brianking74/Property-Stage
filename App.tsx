@@ -8,6 +8,7 @@ import { Dashboard } from './components/Dashboard';
 import { AuthModal } from './components/AuthModal';
 import { CheckoutModal } from './components/CheckoutModal';
 import { AccountProfile } from './components/AccountProfile';
+import { ContactForm } from './components/ContactForm';
 import { UserProvider, useUser } from './contexts/UserContext';
 import { CurrencyProvider } from './contexts/CurrencyContext';
 import { ViewState, PricingTier } from './types';
@@ -169,6 +170,7 @@ const MainContent = () => {
             <Features />
             <WhatsAppBot />
             <Pricing onNavigate={setCurrentView} onCheckout={handleCheckoutRequest} />
+            <ContactForm />
             
             <footer className="bg-gray-900 text-white py-12">
               <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 grid grid-cols-1 md:grid-cols-4 gap-8">

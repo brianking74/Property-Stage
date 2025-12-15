@@ -39,6 +39,7 @@ export const Dashboard: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [selectedType, setSelectedType] = useState<string>(TRANSFORMATION_TYPES[0].id);
   const [customPrompt, setCustomPrompt] = useState('');
+  const [resolution, setResolution] = useState<string>('1K');
   
   // Cropper State
   const [isCropping, setIsCropping] = useState(false);
@@ -151,7 +152,13 @@ export const Dashboard: React.FC = () => {
       const typeConfig = TRANSFORMATION_TYPES.find(t => t.id === selectedType);
       const prompt = `${typeConfig?.promptPrefix} ${customPrompt}`;
       
-      const result = await transformPropertyImage(selectedImage, prompt, targetRatio);
+      const result = await transformPropertyImage(
+        selectedImage, 
+        prompt, 
+        targetRatio, 
+        'gemini-3-pro-image-preview', 
+        resolution
+      );
       
       if (result) {
         setGeneratedImage(result);
@@ -277,7 +284,33 @@ export const Dashboard: React.FC = () => {
           </div>
 
           <div className="mb-6">
-             <label className="block text-sm font-medium text-gray-700 mb-2">3. Additional Instructions (Optional)</label>
+            <label className="block text-sm font-medium text-gray-700 mb-2">3. Output Resolution</label>
+            <div className="flex gap-4">
+              <button
+                onClick={() => setResolution('1K')}
+                className={`flex-1 py-2 px-4 rounded-lg border text-sm font-medium transition-all ${
+                  resolution === '1K' 
+                    ? 'border-blue-600 bg-blue-50 text-blue-700 ring-1 ring-blue-600' 
+                    : 'border-gray-200 hover:bg-gray-50 text-gray-700'
+                }`}
+              >
+                Standard (1K)
+              </button>
+              <button
+                onClick={() => setResolution('4K')}
+                className={`flex-1 py-2 px-4 rounded-lg border text-sm font-medium transition-all ${
+                  resolution === '4K' 
+                    ? 'border-blue-600 bg-blue-50 text-blue-700 ring-1 ring-blue-600' 
+                    : 'border-gray-200 hover:bg-gray-50 text-gray-700'
+                }`}
+              >
+                Ultra HD (4K)
+              </button>
+            </div>
+          </div>
+
+          <div className="mb-6">
+             <label className="block text-sm font-medium text-gray-700 mb-2">4. Additional Instructions (Optional)</label>
              <textarea 
                 className="w-full border border-gray-300 rounded-lg p-3 text-sm focus:ring-blue-500 focus:border-blue-500"
                 rows={3}
