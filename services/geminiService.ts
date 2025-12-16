@@ -10,6 +10,10 @@ export const transformPropertyImage = async (
   try {
     // Initialize inside the function to ensure we capture the latest process.env.API_KEY
     // after the user performs the key selection flow.
+    if (!process.env.API_KEY) {
+      throw new Error("API Key is missing. Please select a valid API key to continue.");
+    }
+
     const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
 
     // Clean base64 string if it contains headers
@@ -80,6 +84,11 @@ Return ONLY the transformed image data.`,
     
     // Transform common SDK/API errors into user-friendly messages
     const errString = error.toString();
+    
+    if (errString.includes("API Key is missing")) {
+        throw error; // Re-throw the specific missing key error
+    }
+
     if (errString.includes("403") || errString.includes("permission denied")) {
         throw new Error("Permission denied. Please check your API key.");
     }

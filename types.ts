@@ -14,6 +14,7 @@ export interface User {
   plan: PlanTier;
   credits: number; // -1 for unlimited
   joinedDate: string;
+  profileImage?: string;
 }
 
 export interface PricingTier {

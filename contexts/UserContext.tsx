@@ -9,6 +9,7 @@ interface UserContextType {
   logout: () => void;
   upgradePlan: (plan: PlanTier, credits: number) => Promise<void>;
   deductCredit: () => boolean;
+  updateProfileImage: (image: string) => void;
 }
 
 const UserContext = createContext<UserContextType | undefined>(undefined);
@@ -131,8 +132,18 @@ export const UserProvider: React.FC<{ children: React.ReactNode }> = ({ children
     return false;
   };
 
+  const updateProfileImage = (image: string) => {
+    if (!user) return;
+    const updatedUser: User = {
+      ...user,
+      profileImage: image
+    };
+    setUser(updatedUser);
+    saveToDb(updatedUser);
+  };
+
   return (
-    <UserContext.Provider value={{ user, isLoading, login, signup, logout, upgradePlan, deductCredit }}>
+    <UserContext.Provider value={{ user, isLoading, login, signup, logout, upgradePlan, deductCredit, updateProfileImage }}>
       {children}
     </UserContext.Provider>
   );

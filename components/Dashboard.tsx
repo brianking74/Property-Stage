@@ -93,6 +93,17 @@ export const Dashboard: React.FC = () => {
     setTempImage(null);
   };
 
+  const handleApiKeySelect = async () => {
+    try {
+      if ((window as any).aistudio) {
+        await (window as any).aistudio.openSelectKey();
+        setError(null); // Clear error after attempting to select
+      }
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
   const handleProcess = async () => {
     if (!selectedImage) return;
 
@@ -102,11 +113,16 @@ export const Dashboard: React.FC = () => {
       return;
     }
 
+    setLoading(true);
+    setGeneratedImage(null);
+    setError(null);
+
     // Check if user has selected an API key (Required for gemini-3-pro-image-preview)
     try {
       if ((window as any).aistudio) {
         const hasKey = await (window as any).aistudio.hasSelectedApiKey();
         if (!hasKey) {
+          // Attempt to prompt user, but also we will catch the specific error later if this fails/is skipped
           await (window as any).aistudio.openSelectKey();
           // We assume success after the dialog closes to mitigate race conditions
         }
@@ -114,10 +130,6 @@ export const Dashboard: React.FC = () => {
     } catch (e) {
       console.warn("AI Studio key check failed:", e);
     }
-
-    setLoading(true);
-    setGeneratedImage(null);
-    setError(null);
 
     try {
       // Calculate aspect ratio of input image to prevent warping
@@ -172,17 +184,16 @@ export const Dashboard: React.FC = () => {
       console.error(error);
       
       let errorMessage = "An unexpected error occurred. Please try again.";
+      const errorString = error.toString();
       
-      // Handle specific error case where key might be invalid or project not found
-      if (error.toString().includes("Requested entity was not found") || error.toString().includes("permission denied")) {
-        errorMessage = "API Key Permission Denied. Please ensure you have selected a valid API key linked to a GCP project with billing enabled.";
-        try {
-          if ((window as any).aistudio) {
-            await (window as any).aistudio.openSelectKey();
-          }
-        } catch (e) {
-          // ignore
-        }
+      // Handle specific error cases
+      if (
+          errorString.includes("Requested entity was not found") || 
+          errorString.includes("permission denied") || 
+          errorString.includes("API Key is missing") || 
+          errorString.includes("An API Key must be set") // Catch SDK-thrown error
+      ) {
+        errorMessage = "API Key Required. Please ensure you have selected a valid API key linked to a GCP project with billing enabled.";
       } else if (error.message) {
         errorMessage = error.message;
       }
@@ -234,6 +245,15 @@ export const Dashboard: React.FC = () => {
           <div className="flex-1">
             <h3 className="text-sm font-medium text-red-800">Error</h3>
             <p className="text-sm text-red-700 mt-1">{error}</p>
+            {/* Show Connect Button if it's an API Key related error */}
+            {(error.includes("API Key") || error.includes("Permission denied")) && (
+              <button 
+                onClick={handleApiKeySelect}
+                className="mt-3 px-4 py-2 bg-white border border-red-200 text-red-700 text-sm font-semibold rounded-lg hover:bg-red-50 transition-colors shadow-sm"
+              >
+                Connect API Key
+              </button>
+            )}
           </div>
           <button onClick={() => setError(null)} className="text-red-500 hover:text-red-700">
             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
