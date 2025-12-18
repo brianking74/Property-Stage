@@ -34,11 +34,12 @@ export const UserProvider: React.FC<{ children: React.ReactNode }> = ({ children
       const db = dbStr ? JSON.parse(dbStr) : {};
       
       // Seed admin if DB is empty or missing admin
-      if (!db['admin@propertystage.hk']) {
-        db['admin@propertystage.hk'] = {
+      const adminEmail = 'admin@propertystage.hk';
+      if (!db[adminEmail]) {
+        db[adminEmail] = {
           id: 'admin_1',
           name: 'System Admin',
-          email: 'admin@propertystage.hk',
+          email: adminEmail,
           password: 'admin',
           plan: 'MANAGED',
           credits: -1,
@@ -55,7 +56,8 @@ export const UserProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const saveToDb = (u: DbUser) => {
     const db = getDb();
-    db[u.email] = u;
+    // Always store keys in lowercase
+    db[u.email.toLowerCase()] = u;
     localStorage.setItem(DB_KEY, JSON.stringify(db));
   };
 
@@ -65,7 +67,8 @@ export const UserProvider: React.FC<{ children: React.ReactNode }> = ({ children
       try {
         const sessionUser = JSON.parse(storedSession);
         const db = getDb();
-        const freshUser = db[sessionUser.email];
+        // Lookup using lowercase email for reliability
+        const freshUser = db[sessionUser.email.toLowerCase()];
         if (freshUser) {
           const { password, ...safeUser } = freshUser;
           setUser(safeUser);
@@ -77,11 +80,12 @@ export const UserProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setIsLoading(false);
   }, []);
 
-  const login = async (email: string, passwordInput: string) => {
+  const login = async (emailInput: string, passwordInput: string) => {
     await new Promise(resolve => setTimeout(resolve, 600));
     
     const db = getDb();
-    const existingUser = db[email];
+    const normalizedEmail = emailInput.toLowerCase();
+    const existingUser = db[normalizedEmail];
 
     if (!existingUser) {
       return { success: false, error: "Account not found. Please sign up." };
@@ -100,18 +104,20 @@ export const UserProvider: React.FC<{ children: React.ReactNode }> = ({ children
     localStorage.setItem(SESSION_KEY, JSON.stringify(authenticatedUser));
   };
 
-  const signup = async (email: string, name: string, passwordInput: string) => {
+  const signup = async (emailInput: string, name: string, passwordInput: string) => {
     await new Promise(resolve => setTimeout(resolve, 800));
     
     const db = getDb();
-    if (db[email]) {
+    const normalizedEmail = emailInput.toLowerCase();
+    
+    if (db[normalizedEmail]) {
       return { success: false, error: "Email already registered. Try logging in." };
     }
 
     const newUser: DbUser = {
       id: 'user_' + Math.random().toString(36).substr(2, 9),
-      name: name || email.split('@')[0],
-      email,
+      name: name || emailInput.split('@')[0],
+      email: normalizedEmail,
       password: passwordInput,
       plan: 'FREE',
       credits: 3,
@@ -134,7 +140,7 @@ export const UserProvider: React.FC<{ children: React.ReactNode }> = ({ children
     await new Promise(resolve => setTimeout(resolve, 1500)); 
     
     const db = getDb();
-    const dbUser = db[user.email];
+    const dbUser = db[user.email.toLowerCase()];
     if (!dbUser) return;
 
     const updatedUser: DbUser = { ...dbUser, plan, credits };
@@ -142,6 +148,7 @@ export const UserProvider: React.FC<{ children: React.ReactNode }> = ({ children
     
     const { password, ...safeUser } = updatedUser;
     setUser(safeUser);
+    localStorage.setItem(SESSION_KEY, JSON.stringify(safeUser));
   };
 
   const deductCredit = () => {
@@ -149,12 +156,13 @@ export const UserProvider: React.FC<{ children: React.ReactNode }> = ({ children
     if (user.credits === -1) return true;
 
     const db = getDb();
-    const dbUser = db[user.email];
+    const dbUser = db[user.email.toLowerCase()];
     if (dbUser && dbUser.credits > 0) {
       const updatedUser: DbUser = { ...dbUser, credits: dbUser.credits - 1 };
       saveToDb(updatedUser);
       const { password, ...safeUser } = updatedUser;
       setUser(safeUser);
+      localStorage.setItem(SESSION_KEY, JSON.stringify(safeUser));
       return true;
     }
     return false;
@@ -163,13 +171,14 @@ export const UserProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const updateProfileImage = (image: string) => {
     if (!user) return;
     const db = getDb();
-    const dbUser = db[user.email];
+    const dbUser = db[user.email.toLowerCase()];
     if (!dbUser) return;
 
     const updatedUser: DbUser = { ...dbUser, profileImage: image };
     saveToDb(updatedUser);
     const { password, ...safeUser } = updatedUser;
     setUser(safeUser);
+    localStorage.setItem(SESSION_KEY, JSON.stringify(safeUser));
   };
 
   const getAllUsers = () => {

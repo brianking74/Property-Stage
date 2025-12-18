@@ -113,10 +113,16 @@ const MainContent = () => {
                     </p>
                     <div className="flex flex-col sm:flex-row gap-4 justify-center lg:justify-start">
                       <button 
-                        onClick={() => setCurrentView(ViewState.DASHBOARD)}
+                        onClick={() => {
+                          if (user) {
+                            setCurrentView(ViewState.DASHBOARD);
+                          } else {
+                            setIsAuthModalOpen(true);
+                          }
+                        }}
                         className="px-8 py-4 bg-blue-600 text-white rounded-xl font-bold text-lg hover:bg-blue-700 transition-all shadow-lg hover:shadow-blue-600/30"
                       >
-                        Start Free Trial &rarr;
+                        {user ? 'Get Started' : 'Start Free Trial'} &rarr;
                       </button>
                     </div>
                   </div>
