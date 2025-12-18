@@ -62,6 +62,15 @@ const ASPECT_RATIOS = [
   { id: '16:9', label: '16:9', icon: '🎞️' }
 ];
 
+const LOADING_STEPS = [
+  "Analyzing room architecture...",
+  "Identifying light sources...",
+  "Generating design concept...",
+  "Applying material textures...",
+  "Rendering final scene...",
+  "Upscaling to high-definition..."
+];
+
 export const Dashboard: React.FC = () => {
   const { user, deductCredit } = useUser();
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
@@ -78,6 +87,7 @@ export const Dashboard: React.FC = () => {
   const [futureResults, setFutureResults] = useState<string[]>([]);
   
   const [loading, setLoading] = useState(false);
+  const [loadingStep, setLoadingStep] = useState(0);
   const [error, setError] = useState<string | null>(null);
   
   const [selectedStyle, setSelectedStyle] = useState<string>(STYLES[0].id);
@@ -89,6 +99,18 @@ export const Dashboard: React.FC = () => {
   const [tempImage, setTempImage] = useState<string | null>(null);
   
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Cycle through loading messages
+  useEffect(() => {
+    let interval: any;
+    if (loading) {
+      setLoadingStep(0);
+      interval = setInterval(() => {
+        setLoadingStep(prev => (prev + 1) % LOADING_STEPS.length);
+      }, 1500);
+    }
+    return () => clearInterval(interval);
+  }, [loading]);
 
   const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -124,7 +146,7 @@ export const Dashboard: React.FC = () => {
   const handleProcess = async () => {
     if (!selectedImage) return;
     if (user && user.credits === 0) {
-      setError("No credits left.");
+      setError("You've run out of credits. Please upgrade to continue staging.");
       return;
     }
 
@@ -239,9 +261,11 @@ export const Dashboard: React.FC = () => {
   };
 
   const handleReset = () => {
-    setGeneratedImage(null);
-    setPastResults([]);
-    setFutureResults([]);
+    if (window.confirm("Are you sure you want to discard this project?")) {
+      setGeneratedImage(null);
+      setPastResults([]);
+      setFutureResults([]);
+    }
   };
 
   const handleHistoryItemClick = (item: GenerationHistory) => {
@@ -287,7 +311,7 @@ export const Dashboard: React.FC = () => {
             <select 
               value={selectedRoom}
               onChange={(e) => setSelectedRoom(e.target.value as RoomType)}
-              className="w-full p-2.5 rounded-lg border border-gray-200 text-sm focus:ring-2 focus:ring-blue-500 outline-none"
+              className="w-full p-2.5 rounded-lg border border-gray-200 text-sm focus:ring-2 focus:ring-blue-500 outline-none bg-gray-50 font-medium"
             >
               {ROOM_TYPES.map(r => <option key={r} value={r}>{r}</option>)}
             </select>
@@ -303,9 +327,9 @@ export const Dashboard: React.FC = () => {
                 <button
                   key={ratio.id}
                   onClick={() => setSelectedAspectRatio(ratio.id)}
-                  className={`flex items-center gap-2 p-2.5 rounded-xl border text-xs font-bold transition-all ${selectedAspectRatio === ratio.id ? 'border-blue-600 bg-blue-50 text-blue-700' : 'border-gray-100 text-gray-600 hover:bg-gray-50'}`}
+                  className={`flex items-center gap-2 p-2.5 rounded-xl border text-xs font-bold transition-all ${selectedAspectRatio === ratio.id ? 'border-blue-600 bg-blue-50 text-blue-700 shadow-sm' : 'border-gray-100 text-gray-600 hover:bg-gray-50'}`}
                 >
-                  <span>{ratio.icon}</span>
+                  <span className="text-base">{ratio.icon}</span>
                   {ratio.label}
                 </button>
               ))}
@@ -322,9 +346,9 @@ export const Dashboard: React.FC = () => {
                 <button
                   key={style.id}
                   onClick={() => setSelectedStyle(style.id)}
-                  className={`w-full flex items-center gap-3 p-3 rounded-xl border transition-all text-left ${selectedStyle === style.id ? 'border-blue-600 bg-blue-50 ring-1 ring-blue-600' : 'border-gray-100 hover:bg-gray-50'}`}
+                  className={`w-full flex items-center gap-3 p-3 rounded-xl border transition-all text-left group ${selectedStyle === style.id ? 'border-blue-600 bg-blue-50 ring-1 ring-blue-600 shadow-sm' : 'border-gray-100 hover:bg-gray-50'}`}
                 >
-                  <span className="text-2xl">{style.icon}</span>
+                  <span className={`text-2xl transition-transform ${selectedStyle === style.id ? 'scale-110' : 'group-hover:scale-110'}`}>{style.icon}</span>
                   <div>
                     <div className="text-sm font-bold text-gray-900">{style.label}</div>
                     <div className="text-[10px] text-gray-500 leading-tight">{style.description}</div>
@@ -335,15 +359,18 @@ export const Dashboard: React.FC = () => {
           </section>
 
           {error && (
-            <div className="p-3 bg-red-50 border border-red-100 rounded-xl text-xs text-red-600 font-medium animate-shake">
-              ⚠️ {error}
+            <div className="p-4 bg-red-50 border border-red-100 rounded-xl text-xs text-red-600 font-semibold animate-shake shadow-sm">
+              <div className="flex gap-2">
+                <span>⚠️</span>
+                <span>{error}</span>
+              </div>
             </div>
           )}
 
           <button
             onClick={handleProcess}
             disabled={!selectedImage || loading || refining}
-            className={`w-full py-4 rounded-2xl font-bold text-white shadow-lg transition-all ${!selectedImage || loading || refining ? 'bg-gray-300' : 'bg-blue-600 hover:bg-blue-700 active:scale-95'}`}
+            className={`w-full py-4 rounded-2xl font-bold text-white shadow-lg transition-all ${!selectedImage || loading || refining ? 'bg-gray-300' : 'bg-blue-600 hover:bg-blue-700 active:scale-95 shadow-blue-600/20'}`}
           >
             {loading ? (
                <div className="flex items-center justify-center gap-2">
@@ -356,7 +383,7 @@ export const Dashboard: React.FC = () => {
 
         {/* Right: Main Canvas */}
         <div className="flex-1 space-y-6">
-          <div className="bg-gray-100 rounded-3xl p-6 min-h-[500px] border border-gray-200 flex flex-col items-center justify-center relative overflow-hidden">
+          <div className="bg-gray-100 rounded-3xl p-6 min-h-[500px] border border-gray-200 flex flex-col items-center justify-center relative overflow-hidden transition-all duration-500">
             {selectedImage && (
               <div className="absolute top-6 left-6 flex items-center gap-2 z-[60]">
                 <button
@@ -379,24 +406,28 @@ export const Dashboard: React.FC = () => {
             )}
 
             {!selectedImage ? (
-              <div className="text-center text-gray-400">
-                <p className="text-lg font-medium">No photo uploaded yet</p>
-                <p className="text-sm">Start by choosing a room photo from your device.</p>
+              <div className="text-center text-gray-400 group cursor-pointer" onClick={() => fileInputRef.current?.click()}>
+                <div className="w-24 h-24 bg-gray-200 rounded-full flex items-center justify-center text-4xl mx-auto mb-6 group-hover:bg-blue-100 group-hover:text-blue-500 transition-all">📸</div>
+                <p className="text-xl font-bold text-gray-900 mb-1">Upload a Property Photo</p>
+                <p className="text-sm max-w-xs mx-auto">Upload an empty room or a cluttered space to see the AI transform it.</p>
               </div>
             ) : (
               <div className="w-full max-w-4xl">
                 {generatedImage ? (
                   <div className="space-y-6">
-                    <div className="rounded-2xl overflow-hidden shadow-2xl border-4 border-white relative">
+                    <div className="rounded-2xl overflow-hidden shadow-2xl border-4 border-white relative group">
                       <ImageSlider 
                         beforeImage={selectedImage} 
                         afterImage={generatedImage} 
                         aspectRatio={selectedAspectRatio === 'Auto' ? undefined : selectedAspectRatio.replace(':', '/')} 
                       />
                       {refining && (
-                        <div className="absolute inset-0 bg-white/40 backdrop-blur-[2px] z-[50] flex flex-col items-center justify-center">
-                            <div className="w-12 h-12 border-4 border-blue-600 border-t-transparent rounded-full animate-spin mb-3"></div>
-                            <p className="text-blue-900 font-bold bg-white/80 px-4 py-1 rounded-full shadow-sm">Refining with Feedback...</p>
+                        <div className="absolute inset-0 bg-white/60 backdrop-blur-[4px] z-[50] flex flex-col items-center justify-center animate-in fade-in duration-300">
+                            <div className="relative">
+                              <div className="w-20 h-20 border-4 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
+                              <div className="absolute inset-0 flex items-center justify-center text-2xl">✨</div>
+                            </div>
+                            <p className="mt-6 text-blue-900 font-black text-lg bg-white/90 px-6 py-2 rounded-full shadow-xl">Refining with Feedback...</p>
                         </div>
                       )}
                     </div>
@@ -404,8 +435,8 @@ export const Dashboard: React.FC = () => {
                     {/* Feedback Refinement UI */}
                     <div className="bg-white p-6 rounded-2xl border border-blue-100 shadow-sm animate-in fade-in slide-in-from-bottom-2">
                         <div className="flex items-center gap-2 mb-4">
-                            <span className="text-lg">✨</span>
-                            <h4 className="font-bold text-gray-900 text-sm">Refine Staging with AI Feedback</h4>
+                            <div className="w-8 h-8 bg-blue-50 rounded-lg flex items-center justify-center text-blue-600">✨</div>
+                            <h4 className="font-bold text-gray-900 text-sm tracking-tight">Refine Staging with AI Feedback</h4>
                         </div>
                         
                         <div className="flex flex-wrap gap-2 mb-4">
@@ -414,7 +445,7 @@ export const Dashboard: React.FC = () => {
                                     key={q}
                                     onClick={() => handleRefine(q)}
                                     disabled={loading || refining}
-                                    className="px-3 py-1.5 bg-gray-50 border border-gray-100 rounded-full text-xs font-medium text-gray-600 hover:border-blue-300 hover:bg-blue-50 transition-all disabled:opacity-50"
+                                    className="px-3 py-1.5 bg-gray-50 border border-gray-100 rounded-full text-[11px] font-bold text-gray-600 hover:border-blue-300 hover:bg-blue-50 hover:text-blue-700 transition-all disabled:opacity-50"
                                 >
                                     + {q}
                                 </button>
@@ -428,14 +459,14 @@ export const Dashboard: React.FC = () => {
                                 onChange={(e) => setFeedback(e.target.value)}
                                 onKeyDown={(e) => e.key === 'Enter' && handleRefine()}
                                 placeholder="E.g. Change the sofa to leather or add a chandelier..."
-                                className="w-full pl-4 pr-12 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all group-hover:border-blue-200"
+                                className="w-full pl-4 pr-14 py-3.5 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all group-hover:border-blue-200 font-medium"
                             />
                             <button
                                 onClick={() => handleRefine()}
                                 disabled={!feedback || loading || refining}
-                                className="absolute right-2 top-1.5 p-1.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-30 transition-all"
+                                className="absolute right-2 top-2 p-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-30 transition-all shadow-md active:scale-90"
                             >
-                                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 5l7 7-7 7M5 5l7 7-7 7" /></svg>
+                                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M13 5l7 7-7 7M5 5l7 7-7 7" /></svg>
                             </button>
                         </div>
                     </div>
@@ -443,26 +474,50 @@ export const Dashboard: React.FC = () => {
                     <div className="flex justify-between items-center px-2">
                       <button 
                         onClick={handleReset}
-                        className="text-gray-400 text-sm font-bold hover:text-red-500 transition-colors"
+                        className="text-gray-400 text-sm font-bold hover:text-red-500 transition-colors uppercase tracking-widest text-[10px]"
                       >
                         Discard & Restart
                       </button>
                       <a 
                         href={generatedImage} 
                         download="staged-property.jpg"
-                        className="px-8 py-3 rounded-xl bg-green-600 text-white font-bold shadow-lg hover:bg-green-700 transition-all flex items-center gap-2 active:scale-95"
+                        className="px-8 py-3.5 rounded-xl bg-green-600 text-white font-bold shadow-lg shadow-green-600/20 hover:bg-green-700 transition-all flex items-center gap-2 active:scale-95"
                       >
                         <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
-                        Download HD
+                        Download HD Result
                       </a>
                     </div>
                   </div>
                 ) : (
-                  <div className="relative rounded-2xl overflow-hidden shadow-xl border-4 border-white group">
+                  <div className="relative rounded-2xl overflow-hidden shadow-2xl border-4 border-white group">
                     <img src={selectedImage} alt="Original" className="w-full h-auto" />
-                    <div className="absolute inset-0 bg-black/20 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
-                       <span className="bg-white/90 backdrop-blur-sm px-4 py-2 rounded-full text-sm font-bold shadow-lg">Input Photo</span>
-                    </div>
+                    
+                    {loading && (
+                      <div className="absolute inset-0 bg-white/80 backdrop-blur-sm z-50 flex flex-col items-center justify-center p-8 text-center animate-in fade-in duration-300">
+                        <div className="w-full max-w-xs space-y-6">
+                          <div className="relative h-2 bg-gray-200 rounded-full overflow-hidden">
+                            <div 
+                              className="absolute inset-y-0 left-0 bg-blue-600 transition-all duration-1000 ease-out shadow-[0_0_10px_rgba(37,99,235,0.5)]" 
+                              style={{ width: `${((loadingStep + 1) / LOADING_STEPS.length) * 100}%` }}
+                            ></div>
+                          </div>
+                          <div className="space-y-2">
+                            <p className="text-xl font-black text-gray-900 animate-pulse tracking-tight">
+                              {LOADING_STEPS[loadingStep]}
+                            </p>
+                            <p className="text-xs text-gray-500 font-bold uppercase tracking-widest">
+                              GEMINI 3 PRO ENGINE • STAGING {selectedStyle.toUpperCase()}
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                    
+                    {!loading && (
+                      <div className="absolute inset-0 bg-black/20 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                         <span className="bg-white/90 backdrop-blur-sm px-6 py-3 rounded-full text-sm font-bold shadow-2xl border border-gray-100">Ready for Transformation</span>
+                      </div>
+                    )}
                   </div>
                 )}
               </div>
@@ -471,19 +526,25 @@ export const Dashboard: React.FC = () => {
 
           {/* History Tray */}
           {history.length > 0 && (
-            <div className="bg-white p-6 rounded-3xl border border-gray-100 shadow-sm">
-              <h3 className="text-sm font-bold text-gray-900 mb-4">Recent Staging History</h3>
-              <div className="flex gap-4 overflow-x-auto pb-2 scrollbar-hide">
+            <div className="bg-white p-6 rounded-3xl border border-gray-100 shadow-sm overflow-hidden">
+              <div className="flex items-center justify-between mb-6">
+                <h3 className="text-sm font-black text-gray-900 uppercase tracking-widest">Recent Staging History</h3>
+                <span className="text-[10px] font-bold text-gray-400 bg-gray-100 px-2 py-0.5 rounded-full">LAST 10 EDITS</span>
+              </div>
+              <div className="flex gap-5 overflow-x-auto pb-4 scrollbar-hide snap-x">
                 {history.map(item => (
                   <div 
                     key={item.id}
                     onClick={() => handleHistoryItemClick(item)}
-                    className="w-32 shrink-0 cursor-pointer group"
+                    className="w-36 shrink-0 cursor-pointer group snap-start"
                   >
-                    <div className="aspect-square rounded-xl overflow-hidden border border-gray-200 shadow-sm transition-transform group-hover:scale-105">
+                    <div className="aspect-[4/3] rounded-2xl overflow-hidden border-2 border-transparent group-hover:border-blue-500 shadow-sm transition-all group-hover:shadow-xl group-hover:-translate-y-1 bg-gray-100">
                       <img src={item.transformed} className="w-full h-full object-cover" />
                     </div>
-                    <p className="text-[10px] font-bold text-center mt-2 text-gray-500">{item.style}</p>
+                    <div className="flex items-center justify-between mt-3 px-1">
+                      <p className="text-[10px] font-bold text-gray-900">{item.style}</p>
+                      <p className="text-[9px] text-gray-400">{new Date(item.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</p>
+                    </div>
                   </div>
                 ))}
               </div>

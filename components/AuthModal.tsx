@@ -20,8 +20,8 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onSuccess
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   
-  // 2FA States
-  const [verificationCode, setVerificationCode] = useState('');
+  // 2FA States - Use array to maintain fixed positions
+  const [verificationCode, setVerificationCode] = useState<string[]>(['', '', '', '', '', '']);
   const [generatedCode, setGeneratedCode] = useState('');
   const [tempUser, setTempUser] = useState<User | null>(null);
   const [resendTimer, setResendTimer] = useState(0);
@@ -44,6 +44,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onSuccess
     setGeneratedCode(code);
     setResendTimer(30);
     setError(null);
+    setVerificationCode(['', '', '', '', '', '']);
     console.log(`[SECURITY] 2FA code for ${email}: ${code}`);
   };
 
@@ -71,8 +72,8 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onSuccess
     }
   };
 
-  const performVerification = (code: string) => {
-    if (code === generatedCode) {
+  const performVerification = (codeString: string) => {
+    if (codeString === generatedCode) {
       if (tempUser) {
         completeLogin(tempUser);
         onSuccess();
@@ -80,14 +81,15 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onSuccess
       }
     } else {
       setError("Invalid verification code. Please try again.");
-      setVerificationCode('');
+      setVerificationCode(['', '', '', '', '', '']);
       inputRefs.current[0]?.focus();
     }
   };
 
   const handleVerify2FA = (e?: React.FormEvent) => {
     if (e) e.preventDefault();
-    performVerification(verificationCode);
+    const codeString = verificationCode.join('');
+    performVerification(codeString);
   };
 
   const resetAndClose = () => {
@@ -95,7 +97,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onSuccess
     setEmail('');
     setName('');
     setPassword('');
-    setVerificationCode('');
+    setVerificationCode(['', '', '', '', '', '']);
     setGeneratedCode('');
     setTempUser(null);
     setError(null);
@@ -103,26 +105,24 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onSuccess
   };
 
   const handleCodeChange = (index: number, value: string) => {
+    // Only allow digits
     if (!/^\d*$/.test(value)) return;
 
-    const codeArray = verificationCode.split('');
-    // Fill with empty strings if not long enough
-    while (codeArray.length < 6) codeArray.push('');
-    
-    codeArray[index] = value.slice(-1);
-    const finalCode = codeArray.slice(0, 6).join('');
-    setVerificationCode(finalCode);
+    const newCode = [...verificationCode];
+    // Take the last character typed if multiple are pasted/entered
+    newCode[index] = value.slice(-1);
+    setVerificationCode(newCode);
 
-    // Auto focus next input
+    // Auto focus next input if we typed something
     if (value && index < 5) {
       inputRefs.current[index + 1]?.focus();
     }
     
-    // Auto submit if all 6 digits are filled
-    const fullyFilled = codeArray.slice(0, 6).every(char => char !== '');
-    if (fullyFilled && index === 5) {
-      // Use the local finalCode to avoid waiting for state update
-      setTimeout(() => performVerification(finalCode), 50);
+    // Check if all digits are now present
+    const codeString = newCode.join('');
+    if (codeString.length === 6) {
+      // Small timeout to ensure the UI updates before the "Invalid" error potentially clears the boxes
+      setTimeout(() => performVerification(codeString), 100);
     }
   };
 
@@ -250,7 +250,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onSuccess
                       inputMode="numeric"
                       maxLength={1}
                       className="w-12 h-14 text-center text-xl font-bold bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all"
-                      value={verificationCode[idx] || ''}
+                      value={verificationCode[idx]}
                       onChange={(e) => handleCodeChange(idx, e.target.value)}
                       onKeyDown={(e) => handleKeyDown(idx, e)}
                     />
@@ -266,7 +266,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onSuccess
                 <div className="space-y-4">
                   <button
                     type="submit"
-                    disabled={verificationCode.length !== 6 || loading}
+                    disabled={verificationCode.join('').length !== 6 || loading}
                     className="w-full py-4 bg-blue-600 text-white rounded-2xl font-bold hover:bg-blue-700 transition-all shadow-lg disabled:opacity-50"
                   >
                     Verify & Continue
