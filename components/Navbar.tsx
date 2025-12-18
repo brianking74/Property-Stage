@@ -1,3 +1,4 @@
+
 import React from 'react';
 import { ViewState } from '../types';
 import { useUser } from '../contexts/UserContext';
@@ -16,7 +17,6 @@ export const Navbar: React.FC<NavbarProps> = ({ onNavigate, currentView, onLogin
   const scrollToSection = (sectionId: string) => {
     if (currentView !== ViewState.HOME) {
       onNavigate(ViewState.HOME);
-      // Allow React a brief moment to render the Home view content before scrolling
       setTimeout(() => {
         const element = document.getElementById(sectionId);
         if (element) {
@@ -36,7 +36,6 @@ export const Navbar: React.FC<NavbarProps> = ({ onNavigate, currentView, onLogin
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex justify-between items-center h-16">
           <div className="flex items-center gap-4">
-            {/* Currency Switcher */}
             <div className="relative">
               <select
                 value={currency}
@@ -53,10 +52,8 @@ export const Navbar: React.FC<NavbarProps> = ({ onNavigate, currentView, onLogin
               </div>
             </div>
 
-            {/* Separator */}
             <div className="h-6 w-px bg-gray-200"></div>
 
-            {/* Logo */}
             <div 
               className="flex items-center cursor-pointer" 
               onClick={() => onNavigate(ViewState.HOME)}
@@ -72,10 +69,21 @@ export const Navbar: React.FC<NavbarProps> = ({ onNavigate, currentView, onLogin
           </div>
           
           <div className="hidden md:flex space-x-8">
-            <button onClick={() => scrollToSection('features')} className="text-gray-600 hover:text-blue-600 font-medium">Features</button>
-            <button onClick={() => scrollToSection('pricing')} className="text-gray-600 hover:text-blue-600 font-medium">Pricing</button>
-            <button onClick={() => scrollToSection('examples')} className="text-gray-600 hover:text-blue-600 font-medium">Examples</button>
-            <button onClick={() => scrollToSection('contact')} className="text-gray-600 hover:text-blue-600 font-medium">Contact</button>
+            {user?.isAdmin ? (
+               <button 
+                onClick={() => onNavigate(ViewState.ADMIN)} 
+                className={`font-bold transition-colors ${currentView === ViewState.ADMIN ? 'text-blue-600' : 'text-purple-600 hover:text-purple-700'}`}
+              >
+                Admin Console ⚙️
+              </button>
+            ) : (
+              <>
+                <button onClick={() => scrollToSection('features')} className="text-gray-600 hover:text-blue-600 font-medium">Features</button>
+                <button onClick={() => scrollToSection('pricing')} className="text-gray-600 hover:text-blue-600 font-medium">Pricing</button>
+                <button onClick={() => scrollToSection('examples')} className="text-gray-600 hover:text-blue-600 font-medium">Examples</button>
+                <button onClick={() => scrollToSection('contact')} className="text-gray-600 hover:text-blue-600 font-medium">Contact</button>
+              </>
+            )}
           </div>
 
           <div className="flex items-center space-x-4">

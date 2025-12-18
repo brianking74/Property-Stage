@@ -10,11 +10,13 @@ export const transformPropertyImage = async (
   imageSize: string = '1K'
 ): Promise<string | null> => {
   try {
-    if (!process.env.API_KEY) {
-      throw new Error("API Key is missing. Please select a valid API key to continue.");
+    // Guidelines: Create a new instance right before making an API call to ensure it uses the latest key
+    const apiKey = process.env.API_KEY;
+    if (!apiKey) {
+      throw new Error("API Key is missing. Please select a valid API key via the setup dialog.");
     }
 
-    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+    const ai = new GoogleGenAI({ apiKey });
     const cleanBase64 = base64Image.replace(/^data:image\/(png|jpeg|jpg|webp);base64,/, '');
 
     const response = await ai.models.generateContent({
@@ -64,6 +66,10 @@ Output: One single transformed image.`,
 
   } catch (error: any) {
     console.error("Error transforming image:", error);
+    // Guidelines: If requested entity not found, reset key state
+    if (error.message?.includes("Requested entity was not found")) {
+      throw new Error("API Key invalid or not found. Please re-select your key.");
+    }
     throw error;
   }
 };

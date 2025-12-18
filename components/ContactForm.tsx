@@ -1,34 +1,60 @@
+
 import React, { useState } from 'react';
 
 export const ContactForm: React.FC = () => {
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [message, setMessage] = useState('');
+  const [botField, setBotField] = useState('');
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const encode = (data: Record<string, string>) => {
+    return Object.keys(data)
+      .map(key => encodeURIComponent(key) + "=" + encodeURIComponent(data[key]))
+      .join("&");
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setLoading(true);
+    
+    // Simple honeypot check
+    if (botField) {
+      setSuccess(true);
+      return;
+    }
 
-    // Simulate network delay for API call
-    await new Promise(resolve => setTimeout(resolve, 1000));
-    
-    // In a production app, you would send this data to a backend endpoint
-    console.log('Message sent:', { name, email, message });
-    
-    setLoading(false);
-    setSuccess(true);
-    
-    // Reset form fields
-    setName('');
-    setEmail('');
-    setMessage('');
-    
-    // Clear success message after 5 seconds to allow sending another
-    setTimeout(() => {
-        setSuccess(false);
-    }, 5000);
+    setLoading(true);
+    setError(null);
+
+    try {
+      const response = await fetch("/", {
+        method: "POST",
+        headers: { "Content-Type": "application/x-www-form-urlencoded" },
+        body: encode({
+          "form-name": "contact",
+          "name": name,
+          "email": email,
+          "message": message,
+          "bot-field": botField
+        }),
+      });
+      
+      if (response.ok) {
+        setSuccess(true);
+        setName('');
+        setEmail('');
+        setMessage('');
+      } else {
+        throw new Error('Server responded with an error');
+      }
+    } catch (err) {
+      console.error('Submission error:', err);
+      setError("Unable to send message at this time. Please try again.");
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -49,9 +75,9 @@ export const ContactForm: React.FC = () => {
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
                             </svg>
                         </div>
-                        <h3 className="text-2xl font-bold text-gray-900 mb-2">Message Sent Successfully!</h3>
+                        <h3 className="text-2xl font-bold text-gray-900 mb-2">Message Received</h3>
                         <p className="text-gray-500 max-w-sm mb-6">
-                            Thank you for contacting us. Our support team will get back to you at {email} shortly.
+                            Thank you for reaching out. Our team will review your message and get back to you shortly.
                         </p>
                         <button 
                             onClick={() => setSuccess(false)}
@@ -61,13 +87,25 @@ export const ContactForm: React.FC = () => {
                         </button>
                     </div>
                 ) : (
-                    <form onSubmit={handleSubmit} className="space-y-6">
+                    <form 
+                      onSubmit={handleSubmit} 
+                      className="space-y-6"
+                      name="contact"
+                      method="POST"
+                      data-netlify="true"
+                    >
+                        {/* Honeypot field for spam prevention */}
+                        <div className="hidden">
+                          <label>Don't fill this out: <input name="bot-field" value={botField} onChange={e => setBotField(e.target.value)} /></label>
+                        </div>
+
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                             <div>
                                 <label htmlFor="name" className="block text-sm font-medium text-gray-700 mb-1">Full Name</label>
                                 <input
                                     type="text"
                                     id="name"
+                                    name="name"
                                     required
                                     value={name}
                                     onChange={(e) => setName(e.target.value)}
@@ -80,6 +118,7 @@ export const ContactForm: React.FC = () => {
                                 <input
                                     type="email"
                                     id="email"
+                                    name="email"
                                     required
                                     value={email}
                                     onChange={(e) => setEmail(e.target.value)}
@@ -92,6 +131,7 @@ export const ContactForm: React.FC = () => {
                             <label htmlFor="message" className="block text-sm font-medium text-gray-700 mb-1">Message</label>
                             <textarea
                                 id="message"
+                                name="message"
                                 required
                                 rows={4}
                                 value={message}
@@ -100,6 +140,13 @@ export const ContactForm: React.FC = () => {
                                 placeholder="How can we help you today?"
                             ></textarea>
                         </div>
+
+                        {error && (
+                          <div className="p-3 bg-red-50 text-red-600 rounded-lg text-sm font-medium">
+                            {error}
+                          </div>
+                        )}
+
                         <button
                             type="submit"
                             disabled={loading}
@@ -111,7 +158,7 @@ export const ContactForm: React.FC = () => {
                                         <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
                                         <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                                     </svg>
-                                    Sending...
+                                    submitting
                                 </>
                             ) : (
                                 'Send Message'

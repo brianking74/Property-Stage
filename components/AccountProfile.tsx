@@ -19,6 +19,17 @@ export const AccountProfile: React.FC<{ onNavigate: (view: ViewState) => void }>
     }
   };
 
+  const handleUpgradeClick = () => {
+    onNavigate(ViewState.HOME);
+    // Allow React a brief moment to render the Home view content before scrolling
+    setTimeout(() => {
+      const element = document.getElementById('pricing');
+      if (element) {
+        element.scrollIntoView({ behavior: 'smooth' });
+      }
+    }, 100);
+  };
+
   const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
@@ -67,8 +78,8 @@ export const AccountProfile: React.FC<{ onNavigate: (view: ViewState) => void }>
         
         <div className="px-8 pb-8">
           <div className="relative -mt-16 mb-10">
-            <div className="flex flex-col md:flex-row items-center md:items-end justify-between gap-6">
-              <div className="flex flex-col md:flex-row items-center md:items-end gap-6">
+            <div className="flex flex-col md:flex-row items-center md:items-start justify-between gap-6">
+              <div className="flex flex-col md:flex-row items-center md:items-start gap-6">
                 {/* Profile Image with Upload Overlay */}
                 <div 
                   className="group relative w-32 h-32 bg-white rounded-2xl shadow-lg flex items-center justify-center border-4 border-white overflow-hidden cursor-pointer shrink-0"
@@ -98,7 +109,7 @@ export const AccountProfile: React.FC<{ onNavigate: (view: ViewState) => void }>
                 </div>
 
                 {/* User Info */}
-                <div className="text-center md:text-left md:mb-2">
+                <div className="text-center md:text-left mt-4 md:mt-24">
                   <h1 className="text-3xl font-bold text-gray-900 mb-1">{user.name}</h1>
                   <p className="text-gray-500 text-lg">{user.email}</p>
                 </div>
@@ -109,7 +120,7 @@ export const AccountProfile: React.FC<{ onNavigate: (view: ViewState) => void }>
                   logout();
                   onNavigate(ViewState.HOME);
                 }}
-                className="text-red-600 font-medium hover:bg-red-50 px-5 py-2.5 rounded-lg transition-colors md:mb-2"
+                className="text-red-600 font-medium hover:bg-red-50 px-5 py-2.5 rounded-lg transition-colors md:mt-24"
               >
                 Sign Out
               </button>
@@ -126,7 +137,7 @@ export const AccountProfile: React.FC<{ onNavigate: (view: ViewState) => void }>
                 </span>
                 {user.plan === 'FREE' && (
                   <button 
-                    onClick={() => onNavigate(ViewState.HOME)} // Redirect to pricing on home
+                    onClick={handleUpgradeClick}
                     className="text-blue-600 text-sm font-semibold hover:underline"
                   >
                     Upgrade Now

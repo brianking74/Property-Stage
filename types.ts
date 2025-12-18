@@ -1,7 +1,9 @@
+
 export enum ViewState {
   HOME = 'HOME',
   DASHBOARD = 'DASHBOARD',
-  ACCOUNT = 'ACCOUNT'
+  ACCOUNT = 'ACCOUNT',
+  ADMIN = 'ADMIN'
 }
 
 export type PlanTier = 'FREE' | 'PRO' | 'POWER' | 'MANAGED';
@@ -15,6 +17,7 @@ export interface User {
   credits: number; // -1 for unlimited
   joinedDate: string;
   profileImage?: string;
+  isAdmin?: boolean;
 }
 
 export interface PricingTier {
@@ -28,15 +31,20 @@ export interface PricingTier {
   highlight?: boolean;
 }
 
+export type RoomType = 'Living Room' | 'Bedroom' | 'Dining Room' | 'Kitchen' | 'Office' | 'Bathroom' | 'Exterior';
+
 export interface TransformationType {
   id: string;
   label: string;
   promptPrefix: string;
   icon: string;
+  description: string;
 }
 
-export interface ComparisonImage {
-  before: string;
-  after: string;
-  label: string;
+export interface GenerationHistory {
+  id: string;
+  original: string;
+  transformed: string;
+  style: string;
+  timestamp: number;
 }

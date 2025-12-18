@@ -1,47 +1,90 @@
-import React, { useState, useRef } from 'react';
+
+import React, { useState, useRef, useEffect } from 'react';
 import { transformPropertyImage } from '../services/geminiService';
-import { TransformationType } from '../types';
+import { TransformationType, RoomType, GenerationHistory } from '../types';
 import { ImageCropper } from './ImageCropper';
+import { ImageSlider } from './ImageSlider';
 import { useUser } from '../contexts/UserContext';
 
-const TRANSFORMATION_TYPES: TransformationType[] = [
+const STYLES: TransformationType[] = [
   { 
-    id: 'stage_modern', 
-    label: 'Modern Staging', 
-    promptPrefix: 'Stage this empty room with modern, high-end furniture suitable for a luxury apartment. Neutral tones, warm lighting. Keep the original windows, walls, and flooring exactly as is.', 
-    icon: '🛋️' 
+    id: 'modern', 
+    label: 'Modern', 
+    description: 'Clean lines, neutral palette',
+    promptPrefix: 'Stage with sleek modern furniture, minimal decor, and a neutral color scheme. High-end aesthetic.', 
+    icon: '🏢' 
+  },
+  { 
+    id: 'scandi', 
+    label: 'Scandinavian', 
+    description: 'Light wood, cozy, functional',
+    promptPrefix: 'Stage with Scandinavian style: light oak woods, "hygge" cozy textures, and functional minimalist furniture.', 
+    icon: '🌲' 
+  },
+  { 
+    id: 'industrial', 
+    label: 'Industrial', 
+    description: 'Raw metal, brick, leather',
+    promptPrefix: 'Stage with industrial loft style: dark metal accents, leather seating, and reclaimed wood elements.', 
+    icon: '🧱' 
+  },
+  { 
+    id: 'luxury', 
+    label: 'Luxury Gold', 
+    description: 'Marble, gold, velvet',
+    promptPrefix: 'Stage with premium luxury elements: gold accents, marble surfaces, and velvet fabrics for an upscale look.', 
+    icon: '💎' 
   },
   { 
     id: 'declutter', 
-    label: 'Declutter & Clean', 
-    promptPrefix: 'Digitally remove all loose clutter, personal items, boxes, and trash. Leave the furniture and structural elements intact. Make the room look spotless. Do not change the room geometry.', 
+    label: 'Clean Up', 
+    description: 'Remove mess & clutter',
+    promptPrefix: 'Digitally remove all trash, clutter, and personal items. Clean the space while keeping existing fixed furniture.', 
     icon: '🧹' 
-  },
-  { 
-    id: 'upscale_brighten', 
-    label: 'Upscale & Light', 
-    promptPrefix: 'Enhance this image to look like a professional real estate photo. Improve lighting, color balance, and sharpness. Do NOT change any furniture or structure. Just improve image quality.', 
-    icon: '✨' 
-  },
-  {
-    id: 'luxury_gold',
-    label: 'Luxury Renovation',
-    promptPrefix: 'Reimagine this room with luxury gold accents and marble textures. Keep the same perspective and room dimensions, but upgrade the materials.',
-    icon: '🏆'
   }
+];
+
+const ROOM_TYPES: RoomType[] = ['Living Room', 'Bedroom', 'Dining Room', 'Kitchen', 'Office', 'Bathroom', 'Exterior'];
+
+const QUICK_FEEDBACK = [
+  "Make it brighter",
+  "Add more plants",
+  "More minimalist",
+  "Change the rug",
+  "Warm lighting",
+  "Blue accents"
+];
+
+const ASPECT_RATIOS = [
+  { id: 'Auto', label: 'Auto', icon: '📐' },
+  { id: '1:1', label: '1:1', icon: '⬛' },
+  { id: '4:3', label: '4:3', icon: '📺' },
+  { id: '16:9', label: '16:9', icon: '🎞️' }
 ];
 
 export const Dashboard: React.FC = () => {
   const { user, deductCredit } = useUser();
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
+  const [imageDimensions, setImageDimensions] = useState<{width: number, height: number} | null>(null);
   const [generatedImage, setGeneratedImage] = useState<string | null>(null);
+  const [history, setHistory] = useState<GenerationHistory[]>([]);
+  
+  // Feedback states
+  const [feedback, setFeedback] = useState('');
+  const [refining, setRefining] = useState(false);
+  
+  // Undo/Redo Stacks
+  const [pastResults, setPastResults] = useState<string[]>([]);
+  const [futureResults, setFutureResults] = useState<string[]>([]);
+  
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [selectedType, setSelectedType] = useState<string>(TRANSFORMATION_TYPES[0].id);
-  const [customPrompt, setCustomPrompt] = useState('');
+  
+  const [selectedStyle, setSelectedStyle] = useState<string>(STYLES[0].id);
+  const [selectedRoom, setSelectedRoom] = useState<RoomType>('Living Room');
+  const [selectedAspectRatio, setSelectedAspectRatio] = useState<string>('Auto');
   const [resolution, setResolution] = useState<string>('1K');
   
-  // Cropper State
   const [isCropping, setIsCropping] = useState(false);
   const [tempImage, setTempImage] = useState<string | null>(null);
   
@@ -50,359 +93,400 @@ export const Dashboard: React.FC = () => {
   const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (file) {
-      setError(null);
-
-      // 1. Validate File Type
-      const validTypes = ['image/jpeg', 'image/png', 'image/webp'];
-      if (!validTypes.includes(file.type)) {
-        setError("Invalid file format. Please upload a JPG, PNG, or WEBP image.");
-        // Reset input to allow selecting a new file immediately
-        if (event.target) event.target.value = '';
-        return;
-      }
-
-      // 2. Validate file size (max 5MB)
-      const MAX_SIZE = 5 * 1024 * 1024; // 5MB in bytes
-      if (file.size > MAX_SIZE) {
-        setError("File is too large. Please upload an image smaller than 5MB.");
-        if (event.target) event.target.value = '';
-        return;
-      }
-      
       const reader = new FileReader();
       reader.onloadend = () => {
         setTempImage(reader.result as string);
         setIsCropping(true);
-        setGeneratedImage(null);
-        setError(null);
       };
       reader.readAsDataURL(file);
     }
-    // Reset input value to allow selecting the same file again if needed
-    if (event.target) event.target.value = '';
   };
 
-  const handleCropComplete = (croppedImage: string) => {
-    setSelectedImage(croppedImage);
-    setIsCropping(false);
-    setTempImage(null);
-  };
+  const calculateAutoAspectRatio = () => {
+    if (!imageDimensions) return '4:3';
+    const ratio = imageDimensions.width / imageDimensions.height;
+    
+    const targets = [
+      { id: '1:1', val: 1 },
+      { id: '3:4', val: 0.75 },
+      { id: '4:3', val: 1.33 },
+      { id: '9:16', val: 0.5625 },
+      { id: '16:9', val: 1.7777 }
+    ];
 
-  const handleCropCancel = () => {
-    setIsCropping(false);
-    setTempImage(null);
-  };
+    const closest = targets.reduce((prev, curr) => {
+      return (Math.abs(curr.val - ratio) < Math.abs(prev.val - ratio) ? curr : prev);
+    });
 
-  const handleApiKeySelect = async () => {
-    try {
-      if ((window as any).aistudio) {
-        await (window as any).aistudio.openSelectKey();
-        setError(null); // Clear error after attempting to select
-      }
-    } catch (e) {
-      console.error(e);
-    }
+    return closest.id;
   };
 
   const handleProcess = async () => {
     if (!selectedImage) return;
-
-    // Check Credits
     if (user && user.credits === 0) {
-      setError("You have run out of credits. Please upgrade your plan or wait for next month.");
+      setError("No credits left.");
       return;
     }
 
     setLoading(true);
-    setGeneratedImage(null);
     setError(null);
 
-    // Check if user has selected an API key (Required for gemini-3-pro-image-preview)
     try {
-      if ((window as any).aistudio) {
-        const hasKey = await (window as any).aistudio.hasSelectedApiKey();
-        if (!hasKey) {
-          // Attempt to prompt user, but also we will catch the specific error later if this fails/is skipped
-          await (window as any).aistudio.openSelectKey();
-          // We assume success after the dialog closes to mitigate race conditions
-        }
-      }
-    } catch (e) {
-      console.warn("AI Studio key check failed:", e);
-    }
-
-    try {
-      // Calculate aspect ratio of input image to prevent warping
-      const img = new Image();
-      img.src = selectedImage;
-      await img.decode();
+      const styleConfig = STYLES.find(s => s.id === selectedStyle);
+      const prompt = styleConfig?.promptPrefix || '';
       
-      const width = img.naturalWidth;
-      const height = img.naturalHeight;
-      const ratio = width / height;
+      const finalAspectRatio = selectedAspectRatio === 'Auto' 
+        ? calculateAutoAspectRatio() 
+        : selectedAspectRatio;
 
-      // Map to closest supported ratio: "1:1", "3:4", "4:3", "9:16", "16:9"
-      const supportedRatios: Record<string, number> = {
-        '16:9': 16/9,
-        '4:3': 4/3,
-        '1:1': 1,
-        '3:4': 3/4,
-        '9:16': 9/16
-      };
-
-      let targetRatio = '1:1';
-      let minDiff = Infinity;
-      
-      for (const [key, val] of Object.entries(supportedRatios)) {
-        const diff = Math.abs(ratio - val);
-        if (diff < minDiff) {
-          minDiff = diff;
-          targetRatio = key;
-        }
-      }
-
-      const typeConfig = TRANSFORMATION_TYPES.find(t => t.id === selectedType);
-      const prompt = `${typeConfig?.promptPrefix} ${customPrompt}`;
-      
       const result = await transformPropertyImage(
         selectedImage, 
         prompt, 
-        targetRatio, 
+        finalAspectRatio, 
+        selectedRoom,
         'gemini-3-pro-image-preview', 
         resolution
       );
       
       if (result) {
-        setGeneratedImage(result);
-        if (user) {
-          deductCredit();
+        if (generatedImage) {
+          setPastResults(prev => [...prev, generatedImage]);
         }
-      } else {
-        throw new Error("No result returned from the service.");
+        setFutureResults([]);
+        setGeneratedImage(result);
+
+        const newEntry: GenerationHistory = {
+          id: Date.now().toString(),
+          original: selectedImage,
+          transformed: result,
+          style: styleConfig?.label || 'Custom',
+          timestamp: Date.now()
+        };
+        setHistory(prev => [newEntry, ...prev].slice(0, 10));
+        if (user) deductCredit();
       }
-    } catch (error: any) {
-      console.error(error);
-      
-      let errorMessage = "An unexpected error occurred. Please try again.";
-      const errorString = error.toString();
-      
-      // Handle specific error cases
-      if (
-          errorString.includes("Requested entity was not found") || 
-          errorString.includes("permission denied") || 
-          errorString.includes("API Key is missing") || 
-          errorString.includes("An API Key must be set") // Catch SDK-thrown error
-      ) {
-        errorMessage = "API Key Required. Please ensure you have selected a valid API key linked to a GCP project with billing enabled.";
-      } else if (error.message) {
-        errorMessage = error.message;
-      }
-      
-      setError(errorMessage);
+    } catch (err: any) {
+      setError(err.message || "Transformation failed.");
     } finally {
       setLoading(false);
     }
   };
 
-  const downloadImage = () => {
-    if (generatedImage) {
-      const link = document.createElement('a');
-      link.href = generatedImage;
-      link.download = 'property-stage-enhanced.jpg';
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
+  const handleRefine = async (customPrompt?: string) => {
+    const instruction = customPrompt || feedback;
+    if (!instruction || !generatedImage) return;
+
+    setRefining(true);
+    setError(null);
+
+    try {
+      const result = await transformPropertyImage(
+        generatedImage, 
+        `Refine this design with the following request: ${instruction}. Keep the existing style and architecture consistent.`, 
+        selectedAspectRatio === 'Auto' ? calculateAutoAspectRatio() : selectedAspectRatio, 
+        selectedRoom,
+        'gemini-3-pro-image-preview', 
+        resolution
+      );
+
+      if (result) {
+        setPastResults(prev => [...prev, generatedImage]);
+        setFutureResults([]);
+        setGeneratedImage(result);
+        setFeedback('');
+        if (user) deductCredit();
+      }
+    } catch (err: any) {
+      setError(err.message || "Refinement failed.");
+    } finally {
+      setRefining(false);
     }
   };
 
+  const handleUndo = () => {
+    if (pastResults.length > 0) {
+      const prev = pastResults[pastResults.length - 1];
+      if (generatedImage) setFutureResults(prevFuture => [generatedImage, ...prevFuture]);
+      setGeneratedImage(prev);
+      setPastResults(prevPast => prevPast.slice(0, -1));
+    } else if (generatedImage) {
+      setFutureResults(prevFuture => [generatedImage, ...prevFuture]);
+      setGeneratedImage(null);
+    }
+  };
+
+  const handleRedo = () => {
+    if (futureResults.length > 0) {
+      const next = futureResults[0];
+      if (generatedImage) setPastResults(prevPast => [...prevPast, generatedImage]);
+      setGeneratedImage(next);
+      setFutureResults(prevFuture => prevFuture.slice(1));
+    }
+  };
+
+  const handleCropComplete = (img: string) => {
+    setSelectedImage(img);
+    setGeneratedImage(null);
+    setPastResults([]);
+    setFutureResults([]);
+    setIsCropping(false);
+    
+    const image = new Image();
+    image.src = img;
+    image.onload = () => {
+      setImageDimensions({ width: image.naturalWidth, height: image.naturalHeight });
+    };
+  };
+
+  const handleReset = () => {
+    setGeneratedImage(null);
+    setPastResults([]);
+    setFutureResults([]);
+  };
+
+  const handleHistoryItemClick = (item: GenerationHistory) => {
+    setSelectedImage(item.original);
+    setGeneratedImage(item.transformed);
+    setPastResults([]);
+    setFutureResults([]);
+  };
+
   return (
-    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
+    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10">
       {isCropping && tempImage && (
         <ImageCropper 
-          imageSrc={tempImage}
-          onCrop={handleCropComplete}
-          onCancel={handleCropCancel}
+          imageSrc={tempImage} 
+          onCrop={handleCropComplete} 
+          onCancel={() => setIsCropping(false)} 
         />
       )}
 
-      <div className="mb-8 flex justify-between items-end">
-        <div>
-          <h2 className="text-3xl font-bold text-gray-900">Studio Dashboard</h2>
-          <p className="text-gray-600 mt-2">Upload your property photos and apply AI magic.</p>
-        </div>
-        {user && (
-          <div className="bg-blue-50 px-4 py-2 rounded-lg border border-blue-100 text-blue-800 text-sm font-semibold">
-            Credits: {user.credits === -1 ? 'Unlimited' : user.credits}
-          </div>
-        )}
-      </div>
-
-      {error && (
-        <div className="mb-6 bg-red-50 border border-red-200 rounded-xl p-4 flex items-start gap-3">
-          <svg className="w-5 h-5 text-red-600 mt-0.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-          </svg>
-          <div className="flex-1">
-            <h3 className="text-sm font-medium text-red-800">Error</h3>
-            <p className="text-sm text-red-700 mt-1">{error}</p>
-            {/* Show Connect Button if it's an API Key related error */}
-            {(error.includes("API Key") || error.includes("Permission denied")) && (
-              <button 
-                onClick={handleApiKeySelect}
-                className="mt-3 px-4 py-2 bg-white border border-red-200 text-red-700 text-sm font-semibold rounded-lg hover:bg-red-50 transition-colors shadow-sm"
-              >
-                Connect API Key
-              </button>
-            )}
-          </div>
-          <button onClick={() => setError(null)} className="text-red-500 hover:text-red-700">
-            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
-          </button>
-        </div>
-      )}
-
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-        {/* Left Sidebar - Controls */}
-        <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 h-fit">
-          <div className="mb-6">
-            <label className="block text-sm font-medium text-gray-700 mb-2">1. Upload Photo</label>
+      <div className="flex flex-col lg:flex-row gap-8">
+        {/* Left: Settings Panel */}
+        <div className="w-full lg:w-80 shrink-0 space-y-6">
+          <section className="bg-white p-5 rounded-2xl border border-gray-100 shadow-sm">
+            <h3 className="text-sm font-bold text-gray-900 mb-4 flex items-center gap-2">
+              <span className="bg-blue-100 text-blue-600 w-6 h-6 rounded-full flex items-center justify-center text-xs">1</span>
+              Upload Photo
+            </h3>
             <div 
-              className={`border-2 border-dashed rounded-lg p-6 text-center cursor-pointer transition-colors ${selectedImage ? 'border-green-400 bg-green-50' : 'border-gray-300 hover:border-blue-500'}`}
               onClick={() => fileInputRef.current?.click()}
+              className={`border-2 border-dashed rounded-xl p-6 text-center cursor-pointer transition-all ${selectedImage ? 'border-green-400 bg-green-50' : 'border-gray-200 hover:border-blue-500'}`}
             >
-              <input 
-                type="file" 
-                ref={fileInputRef} 
-                onChange={handleFileChange} 
-                className="hidden" 
-                accept="image/jpeg, image/png, image/webp"
-              />
-              <span className="text-4xl block mb-2">{selectedImage ? '✅' : '📸'}</span>
-              <p className="text-sm text-gray-500">{selectedImage ? "Change Image" : "Click to upload"}</p>
-              <p className="text-xs text-gray-400 mt-2">JPG, PNG, WEBP (Max 5MB)</p>
+              <input type="file" ref={fileInputRef} onChange={handleFileChange} className="hidden" accept="image/*" />
+              <div className="text-3xl mb-2">{selectedImage ? '✅' : '📤'}</div>
+              <p className="text-xs font-medium text-gray-500">{selectedImage ? 'Change Image' : 'Click to Upload'}</p>
             </div>
-          </div>
+          </section>
 
-          <div className="mb-6">
-            <label className="block text-sm font-medium text-gray-700 mb-2">2. Choose Style</label>
+          <section className="bg-white p-5 rounded-2xl border border-gray-100 shadow-sm">
+            <h3 className="text-sm font-bold text-gray-900 mb-4 flex items-center gap-2">
+              <span className="bg-blue-100 text-blue-600 w-6 h-6 rounded-full flex items-center justify-center text-xs">2</span>
+              Room Context
+            </h3>
+            <select 
+              value={selectedRoom}
+              onChange={(e) => setSelectedRoom(e.target.value as RoomType)}
+              className="w-full p-2.5 rounded-lg border border-gray-200 text-sm focus:ring-2 focus:ring-blue-500 outline-none"
+            >
+              {ROOM_TYPES.map(r => <option key={r} value={r}>{r}</option>)}
+            </select>
+          </section>
+
+          <section className="bg-white p-5 rounded-2xl border border-gray-100 shadow-sm">
+            <h3 className="text-sm font-bold text-gray-900 mb-4 flex items-center gap-2">
+              <span className="bg-blue-100 text-blue-600 w-6 h-6 rounded-full flex items-center justify-center text-xs">3</span>
+              Aspect Ratio
+            </h3>
             <div className="grid grid-cols-2 gap-2">
-              {TRANSFORMATION_TYPES.map((type) => (
+              {ASPECT_RATIOS.map(ratio => (
                 <button
-                  key={type.id}
-                  onClick={() => setSelectedType(type.id)}
-                  className={`p-3 text-left rounded-lg border transition-all ${
-                    selectedType === type.id 
-                      ? 'border-blue-600 bg-blue-50 text-blue-700 ring-1 ring-blue-600' 
-                      : 'border-gray-200 hover:bg-gray-50 text-gray-700'
-                  }`}
+                  key={ratio.id}
+                  onClick={() => setSelectedAspectRatio(ratio.id)}
+                  className={`flex items-center gap-2 p-2.5 rounded-xl border text-xs font-bold transition-all ${selectedAspectRatio === ratio.id ? 'border-blue-600 bg-blue-50 text-blue-700' : 'border-gray-100 text-gray-600 hover:bg-gray-50'}`}
                 >
-                  <span className="text-xl block mb-1">{type.icon}</span>
-                  <span className="text-xs font-semibold">{type.label}</span>
+                  <span>{ratio.icon}</span>
+                  {ratio.label}
                 </button>
               ))}
             </div>
-          </div>
+          </section>
 
-          <div className="mb-6">
-            <label className="block text-sm font-medium text-gray-700 mb-2">3. Output Resolution</label>
-            <div className="flex gap-4">
-              <button
-                onClick={() => setResolution('1K')}
-                className={`flex-1 py-2 px-4 rounded-lg border text-sm font-medium transition-all ${
-                  resolution === '1K' 
-                    ? 'border-blue-600 bg-blue-50 text-blue-700 ring-1 ring-blue-600' 
-                    : 'border-gray-200 hover:bg-gray-50 text-gray-700'
-                }`}
-              >
-                Standard (1K)
-              </button>
-              <button
-                onClick={() => setResolution('4K')}
-                className={`flex-1 py-2 px-4 rounded-lg border text-sm font-medium transition-all ${
-                  resolution === '4K' 
-                    ? 'border-blue-600 bg-blue-50 text-blue-700 ring-1 ring-blue-600' 
-                    : 'border-gray-200 hover:bg-gray-50 text-gray-700'
-                }`}
-              >
-                Ultra HD (4K)
-              </button>
+          <section className="bg-white p-5 rounded-2xl border border-gray-100 shadow-sm">
+            <h3 className="text-sm font-bold text-gray-900 mb-4 flex items-center gap-2">
+              <span className="bg-blue-100 text-blue-600 w-6 h-6 rounded-full flex items-center justify-center text-xs">4</span>
+              Staging Style
+            </h3>
+            <div className="space-y-2">
+              {STYLES.map(style => (
+                <button
+                  key={style.id}
+                  onClick={() => setSelectedStyle(style.id)}
+                  className={`w-full flex items-center gap-3 p-3 rounded-xl border transition-all text-left ${selectedStyle === style.id ? 'border-blue-600 bg-blue-50 ring-1 ring-blue-600' : 'border-gray-100 hover:bg-gray-50'}`}
+                >
+                  <span className="text-2xl">{style.icon}</span>
+                  <div>
+                    <div className="text-sm font-bold text-gray-900">{style.label}</div>
+                    <div className="text-[10px] text-gray-500 leading-tight">{style.description}</div>
+                  </div>
+                </button>
+              ))}
             </div>
-          </div>
+          </section>
 
-          <div className="mb-6">
-             <label className="block text-sm font-medium text-gray-700 mb-2">4. Additional Instructions (Optional)</label>
-             <textarea 
-                className="w-full border border-gray-300 rounded-lg p-3 text-sm focus:ring-blue-500 focus:border-blue-500"
-                rows={3}
-                placeholder="e.g., Use blue velvet sofa, make the lighting warmer..."
-                value={customPrompt}
-                onChange={(e) => setCustomPrompt(e.target.value)}
-             />
-          </div>
+          {error && (
+            <div className="p-3 bg-red-50 border border-red-100 rounded-xl text-xs text-red-600 font-medium animate-shake">
+              ⚠️ {error}
+            </div>
+          )}
 
           <button
             onClick={handleProcess}
-            disabled={!selectedImage || loading || (user && user.credits === 0)}
-            className={`w-full py-3 px-4 rounded-xl text-white font-semibold text-lg shadow-lg transition-all ${
-              !selectedImage || loading || (user && user.credits === 0)
-                ? 'bg-gray-300 cursor-not-allowed' 
-                : 'bg-blue-600 hover:bg-blue-700 hover:shadow-xl transform hover:-translate-y-0.5'
-            }`}
+            disabled={!selectedImage || loading || refining}
+            className={`w-full py-4 rounded-2xl font-bold text-white shadow-lg transition-all ${!selectedImage || loading || refining ? 'bg-gray-300' : 'bg-blue-600 hover:bg-blue-700 active:scale-95'}`}
           >
             {loading ? (
-              <span className="flex items-center justify-center gap-2">
-                <svg className="animate-spin h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                </svg>
-                Processing...
-              </span>
-            ) : (user && user.credits === 0) ? 'No Credits Left' : 'Generate Transformation ✨'}
+               <div className="flex items-center justify-center gap-2">
+                  <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
+                  AI Staging...
+               </div>
+            ) : 'Generate Design ✨'}
           </button>
         </div>
 
-        {/* Right Area - Canvas */}
-        <div className="lg:col-span-2 space-y-6">
-          <div className="bg-gray-100 rounded-2xl p-4 min-h-[500px] flex items-center justify-center border border-gray-200">
+        {/* Right: Main Canvas */}
+        <div className="flex-1 space-y-6">
+          <div className="bg-gray-100 rounded-3xl p-6 min-h-[500px] border border-gray-200 flex flex-col items-center justify-center relative overflow-hidden">
+            {selectedImage && (
+              <div className="absolute top-6 left-6 flex items-center gap-2 z-[60]">
+                <button
+                  onClick={handleUndo}
+                  disabled={(!generatedImage && pastResults.length === 0) || loading || refining}
+                  className="w-10 h-10 bg-white/90 backdrop-blur-sm rounded-full flex items-center justify-center shadow-md border border-gray-100 text-gray-600 hover:text-blue-600 disabled:opacity-30 transition-all active:scale-90"
+                  title="Undo"
+                >
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6" /></svg>
+                </button>
+                <button
+                  onClick={handleRedo}
+                  disabled={futureResults.length === 0 || loading || refining}
+                  className="w-10 h-10 bg-white/90 backdrop-blur-sm rounded-full flex items-center justify-center shadow-md border border-gray-100 text-gray-600 hover:text-blue-600 disabled:opacity-30 transition-all active:scale-90"
+                  title="Redo"
+                >
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 10h-10a8 8 0 00-8 8v2m18-10l-6 6m6-6l-6-6" /></svg>
+                </button>
+              </div>
+            )}
+
             {!selectedImage ? (
               <div className="text-center text-gray-400">
-                <svg className="w-16 h-16 mx-auto mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                </svg>
-                <p>Upload an image to start</p>
+                <p className="text-lg font-medium">No photo uploaded yet</p>
+                <p className="text-sm">Start by choosing a room photo from your device.</p>
               </div>
             ) : (
-              <div className="relative w-full h-full flex flex-col gap-6">
-                <div className="relative w-full rounded-xl overflow-hidden shadow-lg bg-white">
-                   <img src={selectedImage} alt="Original" className="w-full h-auto object-cover" />
-                   <div className="absolute top-4 left-4 bg-black/50 text-white px-3 py-1 rounded text-sm backdrop-blur-sm">Original</div>
-                </div>
+              <div className="w-full max-w-4xl">
+                {generatedImage ? (
+                  <div className="space-y-6">
+                    <div className="rounded-2xl overflow-hidden shadow-2xl border-4 border-white relative">
+                      <ImageSlider 
+                        beforeImage={selectedImage} 
+                        afterImage={generatedImage} 
+                        aspectRatio={selectedAspectRatio === 'Auto' ? undefined : selectedAspectRatio.replace(':', '/')} 
+                      />
+                      {refining && (
+                        <div className="absolute inset-0 bg-white/40 backdrop-blur-[2px] z-[50] flex flex-col items-center justify-center">
+                            <div className="w-12 h-12 border-4 border-blue-600 border-t-transparent rounded-full animate-spin mb-3"></div>
+                            <p className="text-blue-900 font-bold bg-white/80 px-4 py-1 rounded-full shadow-sm">Refining with Feedback...</p>
+                        </div>
+                      )}
+                    </div>
+                    
+                    {/* Feedback Refinement UI */}
+                    <div className="bg-white p-6 rounded-2xl border border-blue-100 shadow-sm animate-in fade-in slide-in-from-bottom-2">
+                        <div className="flex items-center gap-2 mb-4">
+                            <span className="text-lg">✨</span>
+                            <h4 className="font-bold text-gray-900 text-sm">Refine Staging with AI Feedback</h4>
+                        </div>
+                        
+                        <div className="flex flex-wrap gap-2 mb-4">
+                            {QUICK_FEEDBACK.map(q => (
+                                <button
+                                    key={q}
+                                    onClick={() => handleRefine(q)}
+                                    disabled={loading || refining}
+                                    className="px-3 py-1.5 bg-gray-50 border border-gray-100 rounded-full text-xs font-medium text-gray-600 hover:border-blue-300 hover:bg-blue-50 transition-all disabled:opacity-50"
+                                >
+                                    + {q}
+                                </button>
+                            ))}
+                        </div>
 
-                {generatedImage && (
-                  <div className="relative w-full rounded-xl overflow-hidden shadow-lg bg-white ring-4 ring-blue-500/20">
-                    <img src={generatedImage} alt="Generated" className="w-full h-auto object-cover" />
-                    <div className="absolute top-4 right-4 bg-blue-600 text-white px-3 py-1 rounded text-sm shadow-lg">PropertyStage AI</div>
+                        <div className="relative group">
+                            <input
+                                type="text"
+                                value={feedback}
+                                onChange={(e) => setFeedback(e.target.value)}
+                                onKeyDown={(e) => e.key === 'Enter' && handleRefine()}
+                                placeholder="E.g. Change the sofa to leather or add a chandelier..."
+                                className="w-full pl-4 pr-12 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all group-hover:border-blue-200"
+                            />
+                            <button
+                                onClick={() => handleRefine()}
+                                disabled={!feedback || loading || refining}
+                                className="absolute right-2 top-1.5 p-1.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-30 transition-all"
+                            >
+                                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 5l7 7-7 7M5 5l7 7-7 7" /></svg>
+                            </button>
+                        </div>
+                    </div>
+
+                    <div className="flex justify-between items-center px-2">
+                      <button 
+                        onClick={handleReset}
+                        className="text-gray-400 text-sm font-bold hover:text-red-500 transition-colors"
+                      >
+                        Discard & Restart
+                      </button>
+                      <a 
+                        href={generatedImage} 
+                        download="staged-property.jpg"
+                        className="px-8 py-3 rounded-xl bg-green-600 text-white font-bold shadow-lg hover:bg-green-700 transition-all flex items-center gap-2 active:scale-95"
+                      >
+                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
+                        Download HD
+                      </a>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="relative rounded-2xl overflow-hidden shadow-xl border-4 border-white group">
+                    <img src={selectedImage} alt="Original" className="w-full h-auto" />
+                    <div className="absolute inset-0 bg-black/20 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                       <span className="bg-white/90 backdrop-blur-sm px-4 py-2 rounded-full text-sm font-bold shadow-lg">Input Photo</span>
+                    </div>
                   </div>
                 )}
               </div>
             )}
           </div>
 
-          {generatedImage && (
-            <div className="flex justify-end gap-4">
-              <button 
-                onClick={() => setGeneratedImage(null)}
-                className="px-6 py-2 rounded-lg text-gray-600 hover:bg-gray-100 font-medium"
-              >
-                Discard
-              </button>
-              <button 
-                onClick={downloadImage}
-                className="px-6 py-2 rounded-lg bg-green-600 text-white hover:bg-green-700 font-medium shadow-md flex items-center gap-2"
-              >
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path></svg>
-                Download HD
-              </button>
+          {/* History Tray */}
+          {history.length > 0 && (
+            <div className="bg-white p-6 rounded-3xl border border-gray-100 shadow-sm">
+              <h3 className="text-sm font-bold text-gray-900 mb-4">Recent Staging History</h3>
+              <div className="flex gap-4 overflow-x-auto pb-2 scrollbar-hide">
+                {history.map(item => (
+                  <div 
+                    key={item.id}
+                    onClick={() => handleHistoryItemClick(item)}
+                    className="w-32 shrink-0 cursor-pointer group"
+                  >
+                    <div className="aspect-square rounded-xl overflow-hidden border border-gray-200 shadow-sm transition-transform group-hover:scale-105">
+                      <img src={item.transformed} className="w-full h-full object-cover" />
+                    </div>
+                    <p className="text-[10px] font-bold text-center mt-2 text-gray-500">{item.style}</p>
+                  </div>
+                ))}
+              </div>
             </div>
           )}
         </div>

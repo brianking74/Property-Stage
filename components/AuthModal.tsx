@@ -1,5 +1,7 @@
-import React, { useState } from 'react';
+
+import React, { useState, useEffect, useRef } from 'react';
 import { useUser } from '../contexts/UserContext';
+import { User } from '../types';
 
 interface AuthModalProps {
   isOpen: boolean;
@@ -7,105 +9,290 @@ interface AuthModalProps {
   onSuccess: () => void;
 }
 
+type AuthStep = 'FORM' | 'VERIFY_2FA';
+
 export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onSuccess }) => {
-  const [isLogin, setIsLogin] = useState(false);
+  const [step, setStep] = useState<AuthStep>('FORM');
+  const [isLogin, setIsLogin] = useState(true);
   const [email, setEmail] = useState('');
   const [name, setName] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
-  const { login, signup } = useUser();
+  const [error, setError] = useState<string | null>(null);
+  
+  // 2FA States
+  const [verificationCode, setVerificationCode] = useState('');
+  const [generatedCode, setGeneratedCode] = useState('');
+  const [tempUser, setTempUser] = useState<User | null>(null);
+  const [resendTimer, setResendTimer] = useState(0);
+  
+  const { login, signup, completeLogin } = useUser();
+  const inputRefs = useRef<(HTMLInputElement | null)[]>([]);
+
+  useEffect(() => {
+    let interval: any;
+    if (resendTimer > 0) {
+      interval = setInterval(() => setResendTimer(prev => prev - 1), 1000);
+    }
+    return () => clearInterval(interval);
+  }, [resendTimer]);
 
   if (!isOpen) return null;
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const generateAndSendCode = () => {
+    const code = Math.floor(100000 + Math.random() * 900000).toString();
+    setGeneratedCode(code);
+    setResendTimer(30);
+    setError(null);
+    console.log(`[SECURITY] 2FA code for ${email}: ${code}`);
+  };
+
+  const handleInitialSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
+    setError(null);
+
     try {
-      if (isLogin) {
-        await login(email, name);
+      const result = isLogin 
+        ? await login(email, password)
+        : await signup(email, name, password);
+
+      if (result.success && result.user) {
+        setTempUser(result.user);
+        generateAndSendCode();
+        setStep('VERIFY_2FA');
       } else {
-        await signup(email, name);
+        setError(result.error || "Authentication failed");
       }
-      onSuccess();
-      onClose();
-    } catch (error) {
-      console.error(error);
+    } catch (err) {
+      setError("An unexpected error occurred");
     } finally {
       setLoading(false);
     }
   };
 
+  const performVerification = (code: string) => {
+    if (code === generatedCode) {
+      if (tempUser) {
+        completeLogin(tempUser);
+        onSuccess();
+        resetAndClose();
+      }
+    } else {
+      setError("Invalid verification code. Please try again.");
+      setVerificationCode('');
+      inputRefs.current[0]?.focus();
+    }
+  };
+
+  const handleVerify2FA = (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    performVerification(verificationCode);
+  };
+
+  const resetAndClose = () => {
+    setStep('FORM');
+    setEmail('');
+    setName('');
+    setPassword('');
+    setVerificationCode('');
+    setGeneratedCode('');
+    setTempUser(null);
+    setError(null);
+    onClose();
+  };
+
+  const handleCodeChange = (index: number, value: string) => {
+    if (!/^\d*$/.test(value)) return;
+
+    const codeArray = verificationCode.split('');
+    // Fill with empty strings if not long enough
+    while (codeArray.length < 6) codeArray.push('');
+    
+    codeArray[index] = value.slice(-1);
+    const finalCode = codeArray.slice(0, 6).join('');
+    setVerificationCode(finalCode);
+
+    // Auto focus next input
+    if (value && index < 5) {
+      inputRefs.current[index + 1]?.focus();
+    }
+    
+    // Auto submit if all 6 digits are filled
+    const fullyFilled = codeArray.slice(0, 6).every(char => char !== '');
+    if (fullyFilled && index === 5) {
+      // Use the local finalCode to avoid waiting for state update
+      setTimeout(() => performVerification(finalCode), 50);
+    }
+  };
+
+  const handleKeyDown = (index: number, e: React.KeyboardEvent) => {
+    if (e.key === 'Backspace' && !verificationCode[index] && index > 0) {
+      inputRefs.current[index - 1]?.focus();
+    }
+  };
+
   return (
     <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
-      <div className="absolute inset-0 bg-gray-900/50 backdrop-blur-sm" onClick={onClose} />
-      <div className="relative bg-white rounded-2xl shadow-xl max-w-md w-full p-8 overflow-hidden">
-        <div className="text-center mb-8">
-          <h2 className="text-2xl font-bold text-gray-900">
-            {isLogin ? 'Welcome Back' : 'Create Your Account'}
-          </h2>
-          <p className="text-gray-500 mt-2">
-            {isLogin ? 'Enter your details to access your dashboard' : 'Start transforming your real estate photos today'}
-          </p>
-        </div>
+      <div className="absolute inset-0 bg-gray-900/60 backdrop-blur-sm" onClick={resetAndClose} />
+      
+      <div className="relative bg-white rounded-3xl shadow-2xl max-w-md w-full overflow-hidden transition-all duration-300">
+        <div className="p-8">
+          {step === 'FORM' ? (
+            <div className="animate-in fade-in slide-in-from-bottom-4 duration-300">
+              <div className="text-center mb-8">
+                <div className="w-16 h-16 bg-blue-100 text-blue-600 rounded-2xl flex items-center justify-center text-2xl mx-auto mb-4">
+                  {isLogin ? '🔑' : '✨'}
+                </div>
+                <h2 className="text-2xl font-bold text-gray-900">
+                  {isLogin ? 'Welcome Back' : 'Join PropertyStage'}
+                </h2>
+                <p className="text-gray-500 mt-2 text-sm">
+                  {isLogin ? 'Sign in to access your agent dashboard' : 'Start staging your listings like a pro today'}
+                </p>
+              </div>
 
-        <form onSubmit={handleSubmit} className="space-y-4">
-          {!isLogin && (
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Full Name</label>
-              <input
-                type="text"
-                required
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-              />
+              <form onSubmit={handleInitialSubmit} className="space-y-4">
+                {!isLogin && (
+                  <div>
+                    <label className="block text-xs font-bold text-gray-400 uppercase mb-1 ml-1">Full Name</label>
+                    <input
+                      type="text"
+                      required
+                      placeholder="Jane Doe"
+                      className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all"
+                      value={name}
+                      onChange={(e) => setName(e.target.value)}
+                    />
+                  </div>
+                )}
+                <div>
+                  <label className="block text-xs font-bold text-gray-400 uppercase mb-1 ml-1">Email Address</label>
+                  <input
+                    type="email"
+                    required
+                    placeholder="jane@example.com"
+                    className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-gray-400 uppercase mb-1 ml-1">Password</label>
+                  <input
+                    type="password"
+                    required
+                    placeholder="••••••••"
+                    className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                  />
+                </div>
+
+                {error && (
+                  <div className="p-3 bg-red-50 border border-red-100 rounded-xl text-xs text-red-600 font-medium animate-shake">
+                    ⚠️ {error}
+                  </div>
+                )}
+
+                <button
+                  type="submit"
+                  disabled={loading}
+                  className="w-full py-4 bg-blue-600 text-white rounded-2xl font-bold hover:bg-blue-700 transition-all shadow-lg shadow-blue-600/20 disabled:opacity-70 flex justify-center"
+                >
+                  {loading ? (
+                    <div className="w-6 h-6 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
+                  ) : (
+                    isLogin ? 'Sign In & Verify' : 'Create Account'
+                  )}
+                </button>
+              </form>
+
+              <div className="mt-8 pt-6 border-t border-gray-100 text-center">
+                <p className="text-sm text-gray-500">
+                  {isLogin ? "Don't have an account? " : "Already an agent? "}
+                  <button 
+                    onClick={() => { setIsLogin(!isLogin); setError(null); }}
+                    className="text-blue-600 font-bold hover:text-blue-700 underline underline-offset-4"
+                  >
+                    {isLogin ? 'Sign up' : 'Log in'}
+                  </button>
+                </p>
+              </div>
+            </div>
+          ) : (
+            <div className="animate-in fade-in slide-in-from-right-4 duration-400">
+              <div className="text-center mb-6">
+                <div className="w-16 h-16 bg-blue-100 text-blue-600 rounded-2xl flex items-center justify-center text-2xl mx-auto mb-4">
+                  🛡️
+                </div>
+                <h2 className="text-2xl font-bold text-gray-900">2-Step Verification</h2>
+                <p className="text-gray-500 mt-2 text-sm">
+                  We've sent a 6-digit security code to <br/>
+                  <span className="font-bold text-gray-900">{email}</span>
+                </p>
+              </div>
+
+              {/* Simulation Notice for Developers/Users */}
+              <div className="bg-amber-50 border border-amber-100 rounded-xl p-4 mb-8 text-center animate-pulse">
+                <p className="text-[10px] font-bold text-amber-600 uppercase tracking-widest mb-1">Simulated Email Received</p>
+                <p className="text-lg font-black text-amber-900 tracking-[0.2em]">{generatedCode}</p>
+                <p className="text-[9px] text-amber-500 mt-1">In a real app, this code arrives via email.</p>
+              </div>
+
+              <form onSubmit={handleVerify2FA} className="space-y-8">
+                <div className="flex justify-between gap-2">
+                  {[0, 1, 2, 3, 4, 5].map((idx) => (
+                    <input
+                      key={idx}
+                      ref={(el) => (inputRefs.current[idx] = el)}
+                      type="text"
+                      inputMode="numeric"
+                      maxLength={1}
+                      className="w-12 h-14 text-center text-xl font-bold bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all"
+                      value={verificationCode[idx] || ''}
+                      onChange={(e) => handleCodeChange(idx, e.target.value)}
+                      onKeyDown={(e) => handleKeyDown(idx, e)}
+                    />
+                  ))}
+                </div>
+
+                {error && (
+                  <div className="p-3 bg-red-50 border border-red-100 rounded-xl text-xs text-red-600 font-medium text-center">
+                    {error}
+                  </div>
+                )}
+
+                <div className="space-y-4">
+                  <button
+                    type="submit"
+                    disabled={verificationCode.length !== 6 || loading}
+                    className="w-full py-4 bg-blue-600 text-white rounded-2xl font-bold hover:bg-blue-700 transition-all shadow-lg disabled:opacity-50"
+                  >
+                    Verify & Continue
+                  </button>
+                  
+                  <button
+                    type="button"
+                    onClick={() => {
+                       if (resendTimer === 0) generateAndSendCode();
+                    }}
+                    disabled={resendTimer > 0}
+                    className="w-full text-sm font-bold text-gray-400 disabled:text-gray-300 transition-colors"
+                  >
+                    {resendTimer > 0 ? `Resend code in ${resendTimer}s` : 'Resend Code'}
+                  </button>
+                </div>
+              </form>
+
+              <button 
+                onClick={() => setStep('FORM')}
+                className="mt-8 w-full text-xs font-bold text-gray-400 hover:text-gray-600 transition-colors uppercase tracking-widest"
+              >
+                ← Back to Login
+              </button>
             </div>
           )}
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Email Address</label>
-            <input
-              type="email"
-              required
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-            />
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Password</label>
-            <input
-              type="password"
-              required
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-            />
-          </div>
-
-          <button
-            type="submit"
-            disabled={loading}
-            className="w-full py-3 bg-blue-600 text-white rounded-xl font-bold hover:bg-blue-700 transition-colors shadow-lg disabled:opacity-70 disabled:cursor-not-allowed flex justify-center"
-          >
-            {loading ? (
-              <svg className="animate-spin h-5 w-5 text-white" viewBox="0 0 24 24">
-                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
-                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
-              </svg>
-            ) : (
-              isLogin ? 'Sign In' : 'Create Account'
-            )}
-          </button>
-        </form>
-
-        <div className="mt-6 text-center text-sm text-gray-500">
-          {isLogin ? "Don't have an account? " : "Already have an account? "}
-          <button 
-            onClick={() => setIsLogin(!isLogin)}
-            className="text-blue-600 font-semibold hover:text-blue-700"
-          >
-            {isLogin ? 'Sign up' : 'Log in'}
-          </button>
         </div>
       </div>
     </div>

@@ -1,4 +1,5 @@
-import React, { useState } from 'react';
+
+import React, { useState, useEffect } from 'react';
 import { Navbar } from './components/Navbar';
 import { ImageSlider } from './components/ImageSlider';
 import { Features } from './components/Features';
@@ -9,61 +10,86 @@ import { AuthModal } from './components/AuthModal';
 import { CheckoutModal } from './components/CheckoutModal';
 import { AccountProfile } from './components/AccountProfile';
 import { ContactForm } from './components/ContactForm';
+import { AdminDashboard } from './components/AdminDashboard';
 import { UserProvider, useUser } from './contexts/UserContext';
 import { CurrencyProvider } from './contexts/CurrencyContext';
 import { ViewState, PricingTier } from './types';
 
-// ==========================================
-// CUSTOMIZE HERO IMAGES HERE
-// ==========================================
-// To use your own images:
-// 1. Upload your "Before" (Empty) image to a hosting site.
-// 2. Paste the URL below in HERO_BEFORE.
-// 3. Do the same for your "After" (Staged) image in HERO_AFTER.
-// ==========================================
-
-// FIX: Using Google Drive 'thumbnail' endpoint instead of 'view' to avoid 403 Forbidden errors
-// BEFORE: Empty Room (User Provided)
 const HERO_BEFORE = "https://drive.google.com/thumbnail?id=1N264byF5QC5cjbf40IKDepFfgPXW4LSf&sz=w1920"; 
-// AFTER: Staged Room (User Provided)
 const HERO_AFTER = "https://drive.google.com/thumbnail?id=1P1pZBbKsH5bpt1GXhuGexWVT_PNgrU4i&sz=w1920"; 
-
-// Example 1: Virtual Decluttering & Staging (Messy -> Staged)
-const EXAMPLE_1_BEFORE = "https://drive.google.com/thumbnail?id=1PPYAU8SgixQXpy3ty3BGVean6waJNeNB&sz=w1920"; // Messy
-const EXAMPLE_1_AFTER = "https://drive.google.com/thumbnail?id=1liCQuvnKUaKP2ytVCNuYofjMsdO6wc1-&sz=w1920";  // Staged
-
-// Example 2: Kitchen HDR Effect
-const KITCHEN_BASE = "https://images.unsplash.com/photo-1600607687939-ce8a6c25118c?q=80&w=800&auto=format&fit=crop";
-const EXAMPLE_2_BEFORE = `${KITCHEN_BASE}&bri=-10&con=-10&exp=-10`; // Underexposed
-const EXAMPLE_2_AFTER = `${KITCHEN_BASE}&bri=5&con=10&exp=5`; // Perfect exposure
 
 const MainContent = () => {
   const [currentView, setCurrentView] = useState<ViewState>(ViewState.HOME);
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
   const [isCheckoutModalOpen, setIsCheckoutModalOpen] = useState(false);
   const [selectedPlanForCheckout, setSelectedPlanForCheckout] = useState<PricingTier | null>(null);
+  const [hasKey, setHasKey] = useState<boolean | null>(null);
   
   const { user } = useUser();
 
-  const scrollToExamples = () => {
-    const element = document.getElementById('examples');
-    if (element) {
-      element.scrollIntoView({ behavior: 'smooth' });
+  useEffect(() => {
+    const checkKey = async () => {
+      const aistudio = (window as any).aistudio;
+      if (aistudio) {
+        const selected = await aistudio.hasSelectedApiKey();
+        setHasKey(selected);
+      } else {
+        setHasKey(true);
+      }
+    };
+    checkKey();
+  }, []);
+
+  const handleSelectKey = async () => {
+    const aistudio = (window as any).aistudio;
+    if (aistudio) {
+      await aistudio.openSelectKey();
+      setHasKey(true);
     }
   };
 
   const handleCheckoutRequest = (plan: PricingTier) => {
     if (!user) {
       setIsAuthModalOpen(true);
-      // We'll resume checkout after login (simplified for now, user has to click again)
     } else {
       setSelectedPlanForCheckout(plan);
       setIsCheckoutModalOpen(true);
     }
   };
 
+  if (hasKey === false) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center p-6">
+        <div className="max-w-md w-full bg-white rounded-3xl shadow-2xl p-8 text-center border border-gray-100">
+          <div className="w-20 h-20 bg-blue-600 rounded-3xl flex items-center justify-center text-3xl mx-auto mb-6 shadow-xl shadow-blue-200">✨</div>
+          <h1 className="text-2xl font-bold text-gray-900 mb-4">PropertyStage Setup</h1>
+          <p className="text-gray-500 mb-8">
+            To enable high-quality AI staging using Gemini 3 Pro, you must select your Google AI API key.
+          </p>
+          <div className="space-y-4">
+            <button 
+              onClick={handleSelectKey}
+              className="w-full bg-blue-600 hover:bg-blue-700 text-white py-4 rounded-xl font-bold shadow-lg transition-all"
+            >
+              Select API Key
+            </button>
+            <a 
+              href="https://ai.google.dev/gemini-api/docs/billing" 
+              target="_blank" 
+              className="block text-sm text-blue-600 font-medium hover:underline"
+            >
+              Learn about billing & keys
+            </a>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   const renderView = () => {
     switch(currentView) {
+      case ViewState.ADMIN:
+        return user?.isAdmin ? <AdminDashboard /> : <Dashboard />;
       case ViewState.DASHBOARD:
         return <Dashboard />;
       case ViewState.ACCOUNT:
@@ -72,19 +98,18 @@ const MainContent = () => {
       default:
         return (
           <main>
-            {/* Hero Section */}
             <div className="relative pt-12 pb-20 lg:pt-20 lg:pb-28 overflow-hidden">
               <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
                 <div className="lg:grid lg:grid-cols-12 lg:gap-16 items-center">
                   <div className="lg:col-span-5 text-center lg:text-left mb-12 lg:mb-0">
                     <div className="inline-block px-3 py-1 rounded-full bg-blue-50 text-blue-700 text-sm font-semibold mb-6">
-                      Trusted by Real Estate Agents Around The World
+                      AI Staging Powered by Gemini 3 Pro
                     </div>
                     <h1 className="text-4xl tracking-tight font-extrabold text-gray-900 sm:text-5xl md:text-6xl mb-6">
                       Turn Empty Rooms into <span className="text-blue-600">Sold Homes</span>
                     </h1>
                     <p className="mt-4 text-lg text-gray-500 mb-8">
-                      Instantly stage empty properties with AI. Add furniture, improve lighting, and fix colors while keeping the exact room dimensions.
+                      Instantly stage empty properties with professional designs. Add furniture, improve lighting, and fix colors instantly.
                     </p>
                     <div className="flex flex-col sm:flex-row gap-4 justify-center lg:justify-start">
                       <button 
@@ -93,28 +118,11 @@ const MainContent = () => {
                       >
                         Start Free Trial &rarr;
                       </button>
-                      <button 
-                        onClick={scrollToExamples}
-                        className="px-8 py-4 bg-white text-blue-600 border-2 border-blue-600 rounded-xl font-bold text-lg hover:bg-blue-50 transition-all flex items-center justify-center gap-2 shadow-sm"
-                      >
-                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
-                        See Examples
-                      </button>
-                    </div>
-                    <div className="mt-8 flex items-center justify-center lg:justify-start gap-8 text-gray-400">
-                      <div>
-                        <span className="block text-2xl font-bold text-gray-900">15s</span>
-                        <span className="text-sm">Transformation</span>
-                      </div>
-                      <div>
-                        <span className="block text-2xl font-bold text-gray-900">10k+</span>
-                        <span className="text-sm">Images Staged</span>
-                      </div>
                     </div>
                   </div>
                   
                   <div className="lg:col-span-7">
-                    <div className="relative rounded-2xl shadow-2xl overflow-hidden border-4 border-white bg-gray-100">
+                    <div className="relative rounded-2xl shadow-2xl overflow-hidden border-4 border-white bg-gray-100 animate-fade-in-up">
                       <ImageSlider 
                         beforeImage={HERO_BEFORE} 
                         afterImage={HERO_AFTER} 
@@ -123,47 +131,8 @@ const MainContent = () => {
                         aspectRatio="3/2" 
                       />
                     </div>
-                    <p className="text-center text-sm text-gray-500 mt-4">Drag the slider to see the enhancement ✨</p>
                   </div>
                 </div>
-              </div>
-            </div>
-
-            {/* Interactive Examples Section */}
-            <div className="bg-gray-50 py-16" id="examples">
-              <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-                 <div className="text-center mb-12">
-                   <h2 className="text-3xl font-bold text-gray-900">See the Difference</h2>
-                   <p className="text-gray-500 mt-2">Our AI respects the original room structure while maximizing appeal.</p>
-                 </div>
-                 
-                 <div className="grid grid-cols-1 md:grid-cols-2 gap-12">
-                   <div className="flex flex-col gap-4">
-                      <div className="rounded-xl overflow-hidden shadow-lg border border-gray-200">
-                        <ImageSlider 
-                            beforeImage={EXAMPLE_1_BEFORE}
-                            afterImage={EXAMPLE_1_AFTER}
-                            beforeLabel="Messy"
-                            afterLabel="Staged"
-                            aspectRatio="3/2"
-                        />
-                      </div>
-                      <p className="text-center text-lg font-medium text-gray-700">Virtual Decluttering & Staging</p>
-                   </div>
-                   
-                   <div className="flex flex-col gap-4">
-                      <div className="rounded-xl overflow-hidden shadow-lg border border-gray-200">
-                        <ImageSlider 
-                            beforeImage={EXAMPLE_2_BEFORE}
-                            afterImage={EXAMPLE_2_AFTER}
-                            beforeLabel="Standard"
-                            afterLabel="HDR Effect"
-                            aspectRatio="3/2"
-                        />
-                      </div>
-                      <p className="text-center text-lg font-medium text-gray-700">Detail & Color Enhancement</p>
-                   </div>
-                 </div>
               </div>
             </div>
 
@@ -181,9 +150,8 @@ const MainContent = () => {
                  <div>
                    <h4 className="font-semibold mb-4">Product</h4>
                    <ul className="space-y-2 text-gray-400">
-                     <li><a href="#" className="hover:text-white">Features</a></li>
-                     <li><a href="#" className="hover:text-white">Pricing</a></li>
-                     <li><a href="#" className="hover:text-white">Login</a></li>
+                     <li><a href="#features" className="hover:text-white">Features</a></li>
+                     <li><a href="#pricing" className="hover:text-white">Pricing</a></li>
                    </ul>
                  </div>
                  <div>
@@ -191,7 +159,6 @@ const MainContent = () => {
                    <ul className="space-y-2 text-gray-400">
                      <li>support@propertystage.hk</li>
                      <li>+852 6799 2012</li>
-                     <li>Central, Hong Kong</li>
                    </ul>
                  </div>
               </div>
@@ -215,7 +182,6 @@ const MainContent = () => {
         isOpen={isAuthModalOpen} 
         onClose={() => setIsAuthModalOpen(false)}
         onSuccess={() => {
-           // If user was trying to checkout, reopen checkout modal
            if (selectedPlanForCheckout) {
              setIsCheckoutModalOpen(true);
            }
