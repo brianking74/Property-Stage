@@ -5,6 +5,7 @@ import { ImageSlider } from './components/ImageSlider';
 import { Features } from './components/Features';
 import { Pricing } from './components/Pricing';
 import { WhatsAppBot } from './components/WhatsAppBot';
+import { Gallery } from './components/Gallery';
 import { Dashboard } from './components/Dashboard';
 import { AuthModal } from './components/AuthModal';
 import { CheckoutModal } from './components/CheckoutModal';
@@ -15,8 +16,9 @@ import { UserProvider, useUser } from './contexts/UserContext';
 import { CurrencyProvider } from './contexts/CurrencyContext';
 import { ViewState, PricingTier } from './types';
 
-const HERO_BEFORE = "https://drive.google.com/thumbnail?id=1N264byF5QC5cjbf40IKDepFfgPXW4LSf&sz=w1920"; 
-const HERO_AFTER = "https://drive.google.com/thumbnail?id=1P1pZBbKsH5bpt1GXhuGexWVT_PNgrU4i&sz=w1920"; 
+// Updated Hero Images based on user request
+const HERO_BEFORE = "https://drive.google.com/thumbnail?id=1vWG_1F4gJ8H3Kgsm8I5nwYMgWEYeb5Vw&sz=w1920"; 
+const HERO_AFTER = "https://drive.google.com/thumbnail?id=1n2M3-EvdVjqo5C8iQOfiq2IzS7w8LP8m&sz=w1920"; 
 
 const MainContent = () => {
   const [currentView, setCurrentView] = useState<ViewState>(ViewState.HOME);
@@ -132,7 +134,7 @@ const MainContent = () => {
                       <ImageSlider 
                         beforeImage={HERO_BEFORE} 
                         afterImage={HERO_AFTER} 
-                        beforeLabel="Empty"
+                        beforeLabel="Original"
                         afterLabel="Staged"
                         aspectRatio="3/2" 
                       />
@@ -144,6 +146,7 @@ const MainContent = () => {
 
             <Features />
             <WhatsAppBot />
+            <Gallery />
             <Pricing onNavigate={setCurrentView} onCheckout={handleCheckoutRequest} />
             <ContactForm />
             

@@ -1,9 +1,11 @@
+
 import React from 'react';
 
 export const WhatsAppBot: React.FC = () => {
   // Using Drive thumbnail links to prevent 403 errors
-  const WHATSAPP_BEFORE = "https://drive.google.com/thumbnail?id=1vWG_1F4gJ8H3Kgsm8I5nwYMgWEYeb5Vw&sz=w800";
-  const WHATSAPP_AFTER = "https://drive.google.com/thumbnail?id=1n2M3-EvdVjqo5C8iQOfiq2IzS7w8LP8m&sz=w800";
+  // Updated to match the new decluttering example IDs
+  const WHATSAPP_BEFORE = "https://drive.google.com/thumbnail?id=1PPYAU8SgixQXpy3ty3BGVean6waJNeNB&sz=w800";
+  const WHATSAPP_AFTER = "https://drive.google.com/thumbnail?id=1liCQuvnKUaKP2ytVCNuYofjMsdO6wc1-&sz=w800";
   const WHATSAPP_LINK = "https://wa.me/85267992012";
 
   return (
