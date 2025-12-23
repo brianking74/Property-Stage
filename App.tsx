@@ -16,7 +16,6 @@ import { UserProvider, useUser } from './contexts/UserContext';
 import { CurrencyProvider } from './contexts/CurrencyContext';
 import { ViewState, PricingTier } from './types';
 
-// Updated Hero Images based on user request
 const HERO_BEFORE = "https://drive.google.com/thumbnail?id=1vWG_1F4gJ8H3Kgsm8I5nwYMgWEYeb5Vw&sz=w1920"; 
 const HERO_AFTER = "https://drive.google.com/thumbnail?id=1n2M3-EvdVjqo5C8iQOfiq2IzS7w8LP8m&sz=w1920"; 
 
@@ -31,7 +30,7 @@ const MainContent = () => {
 
   useEffect(() => {
     const checkKey = async () => {
-      // Check if we already have a key in process.env
+      // First, check if key is already available in process.env
       if (process.env.API_KEY) {
         setHasKey(true);
         return;
@@ -39,28 +38,38 @@ const MainContent = () => {
 
       const aistudio = (window as any).aistudio;
       if (aistudio) {
-        const selected = await aistudio.hasSelectedApiKey();
-        setHasKey(selected);
+        try {
+          const selected = await aistudio.hasSelectedApiKey();
+          // On some systems, hasSelectedApiKey might return true but process.env is still syncing
+          // We trust the bridge check but check the env var too
+          setHasKey(selected && !!process.env.API_KEY);
+        } catch (e) {
+          console.warn("Bridge detection failed", e);
+          setHasKey(false);
+        }
       } else {
-        // Fallback for dev or non-aistudio environments
+        // Fallback: If not in AI Studio environment at all, assume it's dev and we're good
         setHasKey(true);
       }
     };
     
-    // Initial check
     checkKey();
     
-    // Some mobile environments take a second to inject the bridge
-    const timer = setTimeout(checkKey, 1000);
-    return () => clearTimeout(timer);
+    // Poll bridge every 2s to catch background key selection/sync
+    const interval = setInterval(checkKey, 2000);
+    return () => clearInterval(interval);
   }, []);
 
   const handleSelectKey = async () => {
     const aistudio = (window as any).aistudio;
     if (aistudio) {
-      await aistudio.openSelectKey();
-      // Assume success as per guidelines to avoid race condition
-      setHasKey(true);
+      try {
+        await aistudio.openSelectKey();
+        // Assume success to proceed immediately as per guidelines
+        setHasKey(true);
+      } catch (e) {
+        console.error("Failed to open key selector", e);
+      }
     }
   };
 
@@ -73,21 +82,23 @@ const MainContent = () => {
     }
   };
 
+  // If hasKey is null (loading) or true, show the app.
+  // We only show the setup screen if explicitly false.
   if (hasKey === false) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center p-6">
         <div className="max-w-md w-full bg-white rounded-[2.5rem] shadow-2xl p-10 text-center border border-gray-100 animate-in zoom-in duration-300">
           <div className="w-20 h-20 bg-blue-600 rounded-[1.8rem] flex items-center justify-center text-3xl mx-auto mb-8 shadow-2xl shadow-blue-200">✨</div>
-          <h1 className="text-3xl font-black text-gray-900 mb-4 tracking-tight">AI Setup Required</h1>
+          <h1 className="text-3xl font-black text-gray-900 mb-4 tracking-tight">AI Activation</h1>
           <p className="text-gray-500 mb-10 font-medium leading-relaxed">
-            To unlock the Gemini 3 Pro rendering engine, you need to connect your Google AI API key.
+            PropertyStage uses high-end Gemini 3 Pro rendering. To continue, please link your Google AI API key.
           </p>
           <div className="space-y-5">
             <button 
               onClick={handleSelectKey}
               className="w-full bg-blue-600 hover:bg-blue-700 text-white py-5 rounded-2xl font-black text-lg shadow-xl shadow-blue-600/20 transition-all active:scale-95"
             >
-              Connect API Key
+              Select API Key
             </button>
             <a 
               href="https://ai.google.dev/gemini-api/docs/billing" 
