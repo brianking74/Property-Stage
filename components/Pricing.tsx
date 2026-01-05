@@ -24,6 +24,7 @@ const TIERS: PricingTier[] = [
     name: 'Pay As You Go',
     price: '$0.75',
     priceValue: 0.75,
+    stripePriceId: 'prod_TjXdijvT73RQHF', // Real Product ID provided
     description: 'No commitment; ideal for occasional needs.',
     features: ['Unlimited (pay per use)', 'No watermarks', 'No recurring commitment'],
     cta: 'Top Up'
@@ -33,6 +34,7 @@ const TIERS: PricingTier[] = [
     name: 'Pro',
     price: '$14.99',
     priceValue: 14.99,
+    stripePriceId: 'prod_TjXIyXeIUdjXhU', // Real Product ID provided
     description: 'Removes watermarks; priority processing.',
     features: ['50 High-quality images', 'No watermarks', 'Priority processing', 'Standard styles & resolution'],
     cta: 'Go Pro',
@@ -43,6 +45,7 @@ const TIERS: PricingTier[] = [
     name: 'Power User',
     price: '$19.99',
     priceValue: 19.99,
+    stripePriceId: 'prod_TjXOb72snEfw8q', // Real Product ID provided
     description: 'All Pro + more styles & resolution.',
     features: ['100 Generations / mo', 'More styles unlocked', 'Higher resolution output', 'Team sharing (2 seats)'],
     cta: 'Get Power'
@@ -52,6 +55,7 @@ const TIERS: PricingTier[] = [
     name: 'Managed',
     price: '$49.99',
     priceValue: 49.99,
+    stripePriceId: 'prod_TjXPM1cLntZH62', // Real Product ID provided
     description: 'Done-for-you: we handle everything.',
     features: ['Unlimited (Fair use, 300-500)', 'Team handles uploads', 'Priority support', 'Up to 5 seats'],
     cta: 'Go Managed'

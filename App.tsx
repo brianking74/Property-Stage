@@ -26,6 +26,7 @@ const MainContent = () => {
   const [isCheckoutModalOpen, setIsCheckoutModalOpen] = useState(false);
   const [selectedPlanForCheckout, setSelectedPlanForCheckout] = useState<PricingTier | null>(null);
   const [hasKey, setHasKey] = useState<boolean | null>(null);
+  const [paymentSuccess, setPaymentSuccess] = useState(false);
   
   // Shared view images
   const [sharedImages, setSharedImages] = useState<{ before: string; after: string } | null>(null);
@@ -33,14 +34,22 @@ const MainContent = () => {
   const { user } = useUser();
 
   useEffect(() => {
-    // Check for shared URL params
+    // Check for shared URL params or Stripe success
     const params = new URLSearchParams(window.location.search);
     const sb = params.get('sb');
     const sa = params.get('sa');
+    const success = params.get('success');
     
     if (sb && sa) {
       setSharedImages({ before: sb, after: sa });
       setCurrentView(ViewState.SHARED);
+    }
+
+    if (success === 'true') {
+      setPaymentSuccess(true);
+      setTimeout(() => setPaymentSuccess(false), 8000);
+      // Clean up URL
+      window.history.replaceState({}, '', window.location.origin);
     }
 
     const checkKey = async () => {
@@ -89,7 +98,6 @@ const MainContent = () => {
   };
 
   // We only show the setup screen if explicitly detected as false.
-  // null allows for initial loading state.
   if (hasKey === false) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center p-6">
@@ -158,6 +166,16 @@ const MainContent = () => {
       default:
         return (
           <main>
+            {paymentSuccess && (
+              <div className="fixed top-20 right-4 z-[200] bg-green-600 text-white px-8 py-4 rounded-2xl shadow-2xl flex items-center gap-4 animate-in slide-in-from-right-10">
+                <div className="bg-white/20 p-2 rounded-full">✓</div>
+                <div>
+                  <p className="font-black text-sm">Payment Successful!</p>
+                  <p className="text-[10px] font-bold opacity-80 uppercase tracking-widest">Your plan has been upgraded.</p>
+                </div>
+              </div>
+            )}
+
             <div className="relative pt-12 pb-20 lg:pt-20 lg:pb-28 overflow-hidden">
               <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
                 <div className="lg:grid lg:grid-cols-12 lg:gap-16 items-center">
@@ -260,6 +278,8 @@ const MainContent = () => {
         onClose={() => setIsCheckoutModalOpen(false)}
         plan={selectedPlanForCheckout}
         onSuccess={() => {
+          // Success is now handled by URL redirection in production,
+          // but for this sandbox, we navigate to Account
           setCurrentView(ViewState.ACCOUNT);
           window.scrollTo({ top: 0, behavior: 'smooth' });
         }}

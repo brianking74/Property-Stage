@@ -26,6 +26,7 @@ export interface PricingTier {
   name: string;
   price: string;
   priceValue: number;
+  stripePriceId?: string; // ID from Stripe Dashboard
   description: string;
   features: string[];
   cta: string;
