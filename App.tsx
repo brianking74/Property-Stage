@@ -16,9 +16,9 @@ import { UserProvider, useUser } from './contexts/UserContext';
 import { CurrencyProvider } from './contexts/CurrencyContext';
 import { ViewState, PricingTier } from './types';
 
-// Hero Images
-const HERO_BEFORE = "https://drive.google.com/thumbnail?id=1vWG_1F4gJ8H3Kgsm8I5nwYMgWEYeb5Vw&sz=w1920"; 
-const HERO_AFTER = "https://drive.google.com/thumbnail?id=1n2M3-EvdVjqo5C8iQOfiq2IzS7w8LP8m&sz=w1920"; 
+// Updated Hero Images using the provided Google Drive IDs
+const HERO_BEFORE = "https://drive.google.com/thumbnail?id=1Q4G1Y-kYaqy76VI3YaRbuWBgj6-7FCQ-&sz=w1920"; // Original Empty Room
+const HERO_AFTER = "https://drive.google.com/thumbnail?id=12wKkaQdnwKxOWLakggCqnMXvMIlHbaLP&sz=w1920";  // Staged Room
 
 const MainContent = () => {
   const [currentView, setCurrentView] = useState<ViewState>(ViewState.HOME);
