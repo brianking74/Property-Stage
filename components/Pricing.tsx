@@ -12,39 +12,57 @@ interface PricingProps {
 const TIERS: PricingTier[] = [
   {
     id: 'FREE',
-    name: 'Free Trial',
+    name: 'Free',
     price: '$0',
     priceValue: 0,
-    description: 'Perfect for trying the magic.',
-    features: ['3 Staging Credits / day', 'Watermarked results', 'Standard resolution', 'Community support'],
+    description: 'Test the app; watermarks on outputs.',
+    features: ['3 Images / day (watermarked)', 'Basic staging & declutter', 'Basic image enhancement'],
     cta: 'Get Started'
   },
   {
+    id: 'PAY_AS_YOU_GO',
+    name: 'Pay As You Go',
+    price: '$0.75',
+    priceValue: 0.75,
+    description: 'No commitment; ideal for occasional needs.',
+    features: ['Unlimited (pay per use)', 'No watermarks', 'No recurring commitment'],
+    cta: 'Top Up'
+  },
+  {
     id: 'PRO',
-    name: 'Pro Agent',
-    price: '$9.99',
-    priceValue: 9.99,
-    description: 'For active listing agents.',
-    features: ['50 High-Res generations', 'Unlimited Basic Edits', 'No Watermarks', 'Priority Processing', 'WhatsApp Bot Access'],
+    name: 'Pro',
+    price: '$14.99',
+    priceValue: 14.99,
+    description: 'Removes watermarks; priority processing.',
+    features: ['50 High-quality images', 'No watermarks', 'Priority processing', 'Standard styles & resolution'],
     cta: 'Go Pro',
     highlight: true
   },
   {
     id: 'POWER',
     name: 'Power User',
-    price: '$14.99',
-    priceValue: 14.99,
-    description: 'For high volume offices.',
-    features: ['250 HD Generations', '4K AI Upscaling', 'All Styles Unlocked', 'Cloud History (Unlimited)', 'Dedicated Support'],
+    price: '$19.99',
+    priceValue: 19.99,
+    description: 'All Pro + more styles & resolution.',
+    features: ['100 Generations / mo', 'More styles unlocked', 'Higher resolution output', 'Team sharing (2 seats)'],
     cta: 'Get Power'
   },
   {
     id: 'MANAGED',
-    name: 'White Glove',
+    name: 'Managed',
     price: '$49.99',
     priceValue: 49.99,
-    description: 'We do the work for you.',
-    features: ['Unlimited Generations', 'Manual Designer Review', 'Send us raw files', '24h Turnaround', '1-on-1 Consultation'],
+    description: 'Done-for-you: we handle everything.',
+    features: ['Unlimited (Fair use, 300-500)', 'Team handles uploads', 'Priority support', 'Up to 5 seats'],
+    cta: 'Go Managed'
+  },
+  {
+    id: 'ENTERPRISE',
+    name: 'Enterprise',
+    price: 'Custom',
+    priceValue: 0,
+    description: 'Bespoke volume; full integration.',
+    features: ['3,000+ Generations', 'White-labeling option', 'Full API integration', 'Managed add-ons'],
     cta: 'Contact Sales'
   }
 ];
@@ -70,6 +88,12 @@ export const Pricing: React.FC<PricingProps> = ({ onNavigate, onCheckout }) => {
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
+  const getPriceSuffix = (tierId: PlanTier) => {
+    if (tierId === 'PAY_AS_YOU_GO') return '/ image';
+    if (tierId === 'FREE' || tierId === 'ENTERPRISE') return '';
+    return '/ mo';
+  };
+
   return (
     <div className="py-24 bg-white" id="pricing">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -83,7 +107,7 @@ export const Pricing: React.FC<PricingProps> = ({ onNavigate, onCheckout }) => {
           </p>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-8">
+        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-8">
           {TIERS.map((tier) => (
             <div 
               key={tier.id} 
@@ -106,11 +130,9 @@ export const Pricing: React.FC<PricingProps> = ({ onNavigate, onCheckout }) => {
               
               <div className="mb-8 flex items-baseline gap-1">
                 <span className="text-4xl font-black text-gray-900 tracking-tighter">
-                  {formatPrice(tier.priceValue)}
+                  {tier.id === 'ENTERPRISE' ? 'Quote' : formatPrice(tier.priceValue)}
                 </span>
-                {tier.priceValue !== 0 && (
-                  <span className="text-gray-400 font-bold text-sm">/ mo</span>
-                )}
+                <span className="text-gray-400 font-bold text-sm">{getPriceSuffix(tier.id)}</span>
               </div>
 
               <div className="h-px bg-gray-50 w-full mb-8"></div>
@@ -147,7 +169,7 @@ export const Pricing: React.FC<PricingProps> = ({ onNavigate, onCheckout }) => {
         
         <div className="mt-16 text-center">
           <p className="text-sm text-gray-400 font-bold uppercase tracking-widest">
-            Trusted by 5,000+ Real Estate Agents in Hong Kong & Singapore
+            Trusted by 5,000+ Real Estate Agents Globally
           </p>
         </div>
       </div>

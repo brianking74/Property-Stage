@@ -49,7 +49,17 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({ isOpen, onClose, p
     // Play success sound if needed or just delay for visual
     await new Promise(r => setTimeout(r, 2000));
     
-    let credits = plan.id === 'PRO' ? 50 : (plan.id === 'POWER' ? 250 : -1);
+    // Credit allocation based on new pricing tiers
+    let credits = 0;
+    switch(plan.id) {
+      case 'PAY_AS_YOU_GO': credits = 10; break; // Assumed starting pack
+      case 'PRO': credits = 50; break;
+      case 'POWER': credits = 100; break;
+      case 'MANAGED': credits = 500; break;
+      case 'ENTERPRISE': credits = 3000; break;
+      default: credits = 3;
+    }
+    
     await upgradePlan(plan.id, credits);
     onSuccess();
     onClose();
@@ -102,7 +112,7 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({ isOpen, onClose, p
             <div className="flex items-center gap-2 mt-1">
               <span className="text-xs text-blue-600 font-black uppercase tracking-widest">{plan.name}</span>
               <span className="w-1 h-1 bg-gray-300 rounded-full"></span>
-              <span className="text-xs text-gray-500 font-bold">{formatPrice(plan.priceValue)} billed monthly</span>
+              <span className="text-xs text-gray-500 font-bold">{formatPrice(plan.priceValue)} {plan.id === 'PAY_AS_YOU_GO' ? 'per image' : 'billed monthly'}</span>
             </div>
           </div>
           <button onClick={onClose} className="w-10 h-10 bg-white rounded-full flex items-center justify-center text-gray-400 hover:text-gray-600 shadow-sm border border-gray-100 transition-all hover:rotate-90">

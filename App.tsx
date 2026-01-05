@@ -16,6 +16,7 @@ import { UserProvider, useUser } from './contexts/UserContext';
 import { CurrencyProvider } from './contexts/CurrencyContext';
 import { ViewState, PricingTier } from './types';
 
+// Hero Images
 const HERO_BEFORE = "https://drive.google.com/thumbnail?id=1vWG_1F4gJ8H3Kgsm8I5nwYMgWEYeb5Vw&sz=w1920"; 
 const HERO_AFTER = "https://drive.google.com/thumbnail?id=1n2M3-EvdVjqo5C8iQOfiq2IzS7w8LP8m&sz=w1920"; 
 
@@ -26,38 +27,43 @@ const MainContent = () => {
   const [selectedPlanForCheckout, setSelectedPlanForCheckout] = useState<PricingTier | null>(null);
   const [hasKey, setHasKey] = useState<boolean | null>(null);
   
+  // Shared view images
+  const [sharedImages, setSharedImages] = useState<{ before: string; after: string } | null>(null);
+  
   const { user } = useUser();
 
   useEffect(() => {
-    const checkKey = async () => {
-      // First, check if key is already available in process.env
-      if (process.env.API_KEY) {
-        setHasKey(true);
-        return;
-      }
+    // Check for shared URL params
+    const params = new URLSearchParams(window.location.search);
+    const sb = params.get('sb');
+    const sa = params.get('sa');
+    
+    if (sb && sa) {
+      setSharedImages({ before: sb, after: sa });
+      setCurrentView(ViewState.SHARED);
+    }
 
+    const checkKey = async () => {
       const aistudio = (window as any).aistudio;
       if (aistudio) {
         try {
           const selected = await aistudio.hasSelectedApiKey();
-          // On some systems, hasSelectedApiKey might return true but process.env is still syncing
-          // We trust the bridge check but check the env var too
-          setHasKey(selected && !!process.env.API_KEY);
+          setHasKey(selected);
         } catch (e) {
-          console.warn("Bridge detection failed", e);
-          setHasKey(false);
+          console.warn("Bridge detection failed, defaulting to app access", e);
+          setHasKey(true);
         }
       } else {
-        // Fallback: If not in AI Studio environment at all, assume it's dev and we're good
+        // Fallback for non-bridge environments (e.g., local dev)
         setHasKey(true);
       }
     };
     
     checkKey();
     
-    // Poll bridge every 2s to catch background key selection/sync
-    const interval = setInterval(checkKey, 2000);
-    return () => clearInterval(interval);
+    // Check again after a short delay for slow-loading mobile bridges
+    const timer = setTimeout(checkKey, 1500);
+    return () => clearTimeout(timer);
   }, []);
 
   const handleSelectKey = async () => {
@@ -65,7 +71,7 @@ const MainContent = () => {
     if (aistudio) {
       try {
         await aistudio.openSelectKey();
-        // Assume success to proceed immediately as per guidelines
+        // Assume success to proceed immediately per guidelines
         setHasKey(true);
       } catch (e) {
         console.error("Failed to open key selector", e);
@@ -82,8 +88,8 @@ const MainContent = () => {
     }
   };
 
-  // If hasKey is null (loading) or true, show the app.
-  // We only show the setup screen if explicitly false.
+  // We only show the setup screen if explicitly detected as false.
+  // null allows for initial loading state.
   if (hasKey === false) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center p-6">
@@ -91,7 +97,7 @@ const MainContent = () => {
           <div className="w-20 h-20 bg-blue-600 rounded-[1.8rem] flex items-center justify-center text-3xl mx-auto mb-8 shadow-2xl shadow-blue-200">✨</div>
           <h1 className="text-3xl font-black text-gray-900 mb-4 tracking-tight">AI Activation</h1>
           <p className="text-gray-500 mb-10 font-medium leading-relaxed">
-            PropertyStage uses high-end Gemini 3 Pro rendering. To continue, please link your Google AI API key.
+            PropertyStage uses the high-end Gemini 3 Pro engine. To begin staging, please link your Google AI API key.
           </p>
           <div className="space-y-5">
             <button 
@@ -121,6 +127,33 @@ const MainContent = () => {
         return <Dashboard />;
       case ViewState.ACCOUNT:
         return <AccountProfile onNavigate={setCurrentView} />;
+      case ViewState.SHARED:
+        return (
+          <div className="max-w-5xl mx-auto px-4 py-20 text-center">
+            <h2 className="text-3xl font-black text-gray-900 mb-2">Shared Transformation</h2>
+            <p className="text-gray-500 mb-10 font-medium">Behold the power of AI Virtual Staging.</p>
+            {sharedImages && (
+              <div className="rounded-3xl overflow-hidden border-8 border-white shadow-2xl bg-gray-100">
+                <ImageSlider 
+                  beforeImage={sharedImages.before} 
+                  afterImage={sharedImages.after} 
+                  aspectRatio="16/9"
+                />
+              </div>
+            )}
+            <div className="mt-12">
+               <button 
+                onClick={() => {
+                  window.history.replaceState({}, '', window.location.origin);
+                  setCurrentView(ViewState.HOME);
+                }}
+                className="px-8 py-4 bg-blue-600 text-white rounded-2xl font-black shadow-lg hover:bg-blue-700 transition-all"
+               >
+                 Create Your Own Staging &rarr;
+               </button>
+            </div>
+          </div>
+        );
       case ViewState.HOME:
       default:
         return (

@@ -3,7 +3,7 @@ import { GoogleGenAI } from "@google/genai";
 
 /**
  * Transforms a property image using Gemini 3 Pro Vision model.
- * Handles the "API Key selection" requirement for high-quality models.
+ * Strictly enforces structural preservation of the room architecture and surface aesthetics.
  */
 export const transformPropertyImage = async (
   base64Image: string,
@@ -14,21 +14,58 @@ export const transformPropertyImage = async (
   imageSize: string = '1K'
 ): Promise<string | null> => {
   try {
-    // ALWAYS get the key right before the call to handle dynamic injection
     const apiKey = process.env.API_KEY;
     
     if (!apiKey) {
       const aistudio = (window as any).aistudio;
       if (aistudio) {
-        // If key is missing but bridge is present, prompt selection
         await aistudio.openSelectKey();
-        throw new Error("API Key was missing. I've opened the selection dialog—please select a key and try again.");
+        throw new Error("Setting up AI engine. Please select your API key and try again.");
       }
-      throw new Error("API Configuration Error: API_KEY not found in environment.");
+      throw new Error("Missing API Key. Please link your Google AI account in settings.");
     }
 
     const ai = new GoogleGenAI({ apiKey });
     const cleanBase64 = base64Image.replace(/^data:image\/(png|jpeg|jpg|webp);base64,/, '');
+
+    /**
+     * ZERO-HALLUCINATION COMPOSITING PROTOCOL (ZHCP) - VERSION 4.0
+     * This prompt forces a two-stage conceptual process within the generation:
+     * 1. CLONE ARCHITECTURE (Walls, Windows, Ceilings, View)
+     * 2. ADD STAGING (Furniture, Decor)
+     */
+    const refinedPrompt = `
+      CRITICAL ROLE: You are a Professional Architectural Photo Compositor.
+      
+      CORE DIRECTIVE: You MUST NOT change the room's physical structure. The input photo is a MASTER TEMPLATE.
+      
+      STAGE 1: ARCHITECTURAL CLONING (ZERO DRIFT)
+      - Identify all walls, ceilings, windows, and structural pillars.
+      - CLONE these pixels exactly. The position, thickness, and boundary of every wall must be PIXEL-PERFECT to the source.
+      - NEVER add new walls. If a space is open in the source, it MUST remain open.
+      - NEVER modify the windows. The frames, glass, and skyline view must remain 100% UNCHANGED.
+      
+      STAGE 2: CHROMA-LOCK (NO COLOR SHIFT)
+      - Extract the exact color and texture of the ceiling and walls from the source.
+      - Do NOT repaint them. White ceilings MUST stay the same shade of white. 
+      - Do NOT allow lighting to "tint" or "wash out" the original surface colors.
+      
+      STAGE 3: ADDITIVE VIRTUAL STAGING
+      - ONLY add furniture and decor in the style: ${prompt}.
+      - These items must be placed ON TOP of the original floor.
+      - Shadows from new furniture must be cast onto the ORIGINAL floor surface.
+      - Enhance image clarity and sharpness, but do not re-render the background elements.
+      
+      ROOM CONTEXT: ${roomType}
+      USER REQUEST: ${prompt}
+      
+      STRICT FAILURE CONDITIONS:
+      - Any change to the window-to-wall ratio.
+      - Addition of a wall that wasn't there.
+      - Shifting the ceiling color to a different hue or value.
+      
+      Output ONLY the final, high-fidelity composited image.
+    `.trim();
 
     const response = await ai.models.generateContent({
       model: modelName,
@@ -41,17 +78,7 @@ export const transformPropertyImage = async (
             },
           },
           {
-            text: `Role: Expert AI Real Estate Stager & Interior Designer.
-Context: This is a ${roomType}.
-Task: ${prompt}
-
-CRITICAL EXECUTION RULES:
-1. SPATIAL ACCURACY: Do not move walls, windows, doors, or architectural features. The room layout must remain 100% identical to the input.
-2. FURNITURE SCALE: Ensure furniture is realistically scaled for a ${roomType}.
-3. LIGHTING: Synthesize shadows and highlights that match the existing light sources (windows/lamps) in the original photo.
-4. QUALITY: Deliver a photorealistic, high-end real estate marketing photo.
-
-Output: One single transformed image.`,
+            text: refinedPrompt,
           },
         ],
       },
@@ -64,30 +91,28 @@ Output: One single transformed image.`,
     });
 
     const candidate = response.candidates?.[0];
-
     if (candidate?.content?.parts) {
       for (const part of candidate.content.parts) {
-        if (part.inlineData && part.inlineData.data) {
+        if (part.inlineData?.data) {
           return `data:image/jpeg;base64,${part.inlineData.data}`;
         }
       }
     }
 
-    throw new Error("The AI model returned text instead of an image. Please try a different style.");
+    throw new Error("The AI engine failed to maintain structural integrity. Retrying with stricter constraints is recommended.");
 
   } catch (error: any) {
     console.error("Gemini Staging Error:", error);
-    
-    // Per documentation: "If the request fails with an error message containing 'Requested entity was not found.', 
-    // reset the key selection state and prompt the user to select a key again via openSelectKey()."
-    if (error.message?.includes("Requested entity was not found") || error.message?.includes("API key not valid")) {
+    if (
+      error.message?.includes("Requested entity was not found") || 
+      error.message?.includes("API key not valid")
+    ) {
       const aistudio = (window as any).aistudio;
       if (aistudio) {
         await aistudio.openSelectKey();
-        throw new Error("Your API Key session has expired or is invalid. Please select a valid key from the dialog.");
+        throw new Error("Your API Key is invalid. Please select a valid key.");
       }
     }
-    
     throw error;
   }
 };

@@ -55,26 +55,27 @@ const QUICK_FEEDBACK = [
   "Blue accents"
 ];
 
-const ASPECT_RATIOS = [
-  { id: 'Auto', label: 'Auto', icon: '📐' },
-  { id: '1:1', label: '1:1', icon: '⬛' },
-  { id: '4:3', label: '4:3', icon: '📺' },
-  { id: '16:9', label: '16:9', icon: '🎞️' }
+const LOADING_STEPS = [
+  "STAGE 1: Cloning Master Architecture...",
+  "STAGE 2: Auditing Wall Boundaries...",
+  "STAGE 3: Locking Original Ceiling Colors...",
+  "STAGE 4: Freezing Window & Skyline Pixels...",
+  "STAGE 5: Additive Furniture Placement...",
+  "STAGE 6: Final Structural Integrity Check..."
 ];
 
-const LOADING_STEPS = [
-  "Analyzing room architecture...",
-  "Identifying light sources...",
-  "Generating design concept...",
-  "Applying material textures...",
-  "Rendering final scene...",
-  "Upscaling to high-definition..."
+const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
+const ALLOWED_TYPES = ['image/jpeg', 'image/png', 'image/webp'];
+
+const RESOLUTION_OPTIONS = [
+  { id: '1K', label: '1K HD', desc: 'Standard clarity' },
+  { id: '2K', label: '2K Pro', desc: 'Listing quality' },
+  { id: '4K', label: '4K Ultra', desc: 'Premium print' },
 ];
 
 export const Dashboard: React.FC = () => {
   const { user, deductCredit } = useUser();
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
-  const [imageDimensions, setImageDimensions] = useState<{width: number, height: number} | null>(null);
   const [generatedImage, setGeneratedImage] = useState<string | null>(null);
   const [history, setHistory] = useState<GenerationHistory[]>([]);
   
@@ -92,15 +93,16 @@ export const Dashboard: React.FC = () => {
   
   const [selectedStyle, setSelectedStyle] = useState<string>(STYLES[0].id);
   const [selectedRoom, setSelectedRoom] = useState<RoomType>('Living Room');
-  const [selectedAspectRatio, setSelectedAspectRatio] = useState<string>('Auto');
+  const [activeAspectRatio, setActiveAspectRatio] = useState<string>('4:3');
   const [resolution, setResolution] = useState<string>('1K');
   
   const [isCropping, setIsCropping] = useState(false);
+  const [croppingTarget, setCroppingTarget] = useState<'UPLOAD' | 'RESULT' | null>(null);
   const [tempImage, setTempImage] = useState<string | null>(null);
+  const [showCropPrompt, setShowCropPrompt] = useState(false);
   
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // Cycle through loading messages
   useEffect(() => {
     let interval: any;
     if (loading) {
@@ -114,33 +116,31 @@ export const Dashboard: React.FC = () => {
 
   const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
-    if (file) {
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        setTempImage(reader.result as string);
-        setIsCropping(true);
-      };
-      reader.readAsDataURL(file);
+    if (!file) return;
+
+    if (!ALLOWED_TYPES.includes(file.type)) {
+      setError("Unsupported format. Please upload a JPG, PNG, or WEBP image.");
+      if (fileInputRef.current) fileInputRef.current.value = "";
+      return;
     }
-  };
 
-  const calculateAutoAspectRatio = () => {
-    if (!imageDimensions) return '4:3';
-    const ratio = imageDimensions.width / imageDimensions.height;
-    
-    const targets = [
-      { id: '1:1', val: 1 },
-      { id: '3:4', val: 0.75 },
-      { id: '4:3', val: 1.33 },
-      { id: '9:16', val: 0.5625 },
-      { id: '16:9', val: 1.7777 }
-    ];
+    if (file.size > MAX_FILE_SIZE) {
+      setError("File too large. Maximum size allowed is 10MB.");
+      if (fileInputRef.current) fileInputRef.current.value = "";
+      return;
+    }
 
-    const closest = targets.reduce((prev, curr) => {
-      return (Math.abs(curr.val - ratio) < Math.abs(prev.val - ratio) ? curr : prev);
-    });
-
-    return closest.id;
+    setError(null);
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      const base64 = reader.result as string;
+      setSelectedImage(base64);
+      setGeneratedImage(null);
+      setPastResults([]);
+      setFutureResults([]);
+      setShowCropPrompt(false);
+    };
+    reader.readAsDataURL(file);
   };
 
   const handleProcess = async () => {
@@ -152,19 +152,16 @@ export const Dashboard: React.FC = () => {
 
     setLoading(true);
     setError(null);
+    setShowCropPrompt(false);
 
     try {
       const styleConfig = STYLES.find(s => s.id === selectedStyle);
       const prompt = styleConfig?.promptPrefix || '';
       
-      const finalAspectRatio = selectedAspectRatio === 'Auto' 
-        ? calculateAutoAspectRatio() 
-        : selectedAspectRatio;
-
       const result = await transformPropertyImage(
         selectedImage, 
         prompt, 
-        finalAspectRatio, 
+        activeAspectRatio, 
         selectedRoom,
         'gemini-3-pro-image-preview', 
         resolution
@@ -176,6 +173,7 @@ export const Dashboard: React.FC = () => {
         }
         setFutureResults([]);
         setGeneratedImage(result);
+        setShowCropPrompt(true);
 
         const newEntry: GenerationHistory = {
           id: Date.now().toString(),
@@ -200,12 +198,13 @@ export const Dashboard: React.FC = () => {
 
     setRefining(true);
     setError(null);
+    setShowCropPrompt(false);
 
     try {
       const result = await transformPropertyImage(
         generatedImage, 
-        `Refine this design with the following request: ${instruction}. Keep the existing style and architecture consistent.`, 
-        selectedAspectRatio === 'Auto' ? calculateAutoAspectRatio() : selectedAspectRatio, 
+        `Add requested item: ${instruction}. MANDATORY: Clone every single background pixel exactly. Do not re-render walls or change ceiling color.`, 
+        activeAspectRatio, 
         selectedRoom,
         'gemini-3-pro-image-preview', 
         resolution
@@ -215,6 +214,7 @@ export const Dashboard: React.FC = () => {
         setPastResults(prev => [...prev, generatedImage]);
         setFutureResults([]);
         setGeneratedImage(result);
+        setShowCropPrompt(true);
         setFeedback('');
         if (user) deductCredit();
       }
@@ -235,6 +235,7 @@ export const Dashboard: React.FC = () => {
       setFutureResults(prevFuture => [generatedImage, ...prevFuture]);
       setGeneratedImage(null);
     }
+    setShowCropPrompt(false);
   };
 
   const handleRedo = () => {
@@ -244,20 +245,32 @@ export const Dashboard: React.FC = () => {
       setGeneratedImage(next);
       setFutureResults(prevFuture => prevFuture.slice(1));
     }
+    setShowCropPrompt(false);
   };
 
-  const handleCropComplete = (img: string) => {
-    setSelectedImage(img);
-    setGeneratedImage(null);
-    setPastResults([]);
-    setFutureResults([]);
+  const openCropperForResult = () => {
+    if (generatedImage) {
+      setTempImage(generatedImage);
+      setCroppingTarget('RESULT');
+      setIsCropping(true);
+    }
+  };
+
+  const handleCropComplete = (img: string, ratio: string) => {
+    if (croppingTarget === 'RESULT') {
+      setPastResults(prev => generatedImage ? [...prev, generatedImage] : prev);
+      setGeneratedImage(img);
+      setActiveAspectRatio(ratio);
+    } else {
+      setSelectedImage(img);
+      setActiveAspectRatio(ratio);
+      setGeneratedImage(null);
+      setPastResults([]);
+      setFutureResults([]);
+    }
     setIsCropping(false);
-    
-    const image = new Image();
-    image.src = img;
-    image.onload = () => {
-      setImageDimensions({ width: image.naturalWidth, height: image.naturalHeight });
-    };
+    setCroppingTarget(null);
+    setShowCropPrompt(false);
   };
 
   const handleReset = () => {
@@ -265,6 +278,8 @@ export const Dashboard: React.FC = () => {
       setGeneratedImage(null);
       setPastResults([]);
       setFutureResults([]);
+      setSelectedImage(null);
+      setShowCropPrompt(false);
     }
   };
 
@@ -273,6 +288,7 @@ export const Dashboard: React.FC = () => {
     setGeneratedImage(item.transformed);
     setPastResults([]);
     setFutureResults([]);
+    setShowCropPrompt(false);
   };
 
   return (
@@ -281,7 +297,10 @@ export const Dashboard: React.FC = () => {
         <ImageCropper 
           imageSrc={tempImage} 
           onCrop={handleCropComplete} 
-          onCancel={() => setIsCropping(false)} 
+          onCancel={() => {
+            setIsCropping(false);
+            setCroppingTarget(null);
+          }} 
         />
       )}
 
@@ -297,9 +316,10 @@ export const Dashboard: React.FC = () => {
               onClick={() => fileInputRef.current?.click()}
               className={`border-2 border-dashed rounded-xl p-6 text-center cursor-pointer transition-all ${selectedImage ? 'border-green-400 bg-green-50' : 'border-gray-200 hover:border-blue-500'}`}
             >
-              <input type="file" ref={fileInputRef} onChange={handleFileChange} className="hidden" accept="image/*" />
+              <input type="file" ref={fileInputRef} onChange={handleFileChange} className="hidden" accept=".jpg,.jpeg,.png,.webp" />
               <div className="text-3xl mb-2">{selectedImage ? '✅' : '📤'}</div>
-              <p className="text-xs font-medium text-gray-500">{selectedImage ? 'Change Image' : 'Click to Upload'}</p>
+              <p className="text-xs font-medium text-gray-500">{selectedImage ? 'Change Image' : 'Select Photo'}</p>
+              <p className="text-[10px] text-gray-400 mt-2">JPG, PNG, WEBP up to 10MB</p>
             </div>
           </section>
 
@@ -320,25 +340,6 @@ export const Dashboard: React.FC = () => {
           <section className="bg-white p-5 rounded-2xl border border-gray-100 shadow-sm">
             <h3 className="text-sm font-bold text-gray-900 mb-4 flex items-center gap-2">
               <span className="bg-blue-100 text-blue-600 w-6 h-6 rounded-full flex items-center justify-center text-xs">3</span>
-              Aspect Ratio
-            </h3>
-            <div className="grid grid-cols-2 gap-2">
-              {ASPECT_RATIOS.map(ratio => (
-                <button
-                  key={ratio.id}
-                  onClick={() => setSelectedAspectRatio(ratio.id)}
-                  className={`flex items-center gap-2 p-2.5 rounded-xl border text-xs font-bold transition-all ${selectedAspectRatio === ratio.id ? 'border-blue-600 bg-blue-50 text-blue-700 shadow-sm' : 'border-gray-100 text-gray-600 hover:bg-gray-50'}`}
-                >
-                  <span className="text-base">{ratio.icon}</span>
-                  {ratio.label}
-                </button>
-              ))}
-            </div>
-          </section>
-
-          <section className="bg-white p-5 rounded-2xl border border-gray-100 shadow-sm">
-            <h3 className="text-sm font-bold text-gray-900 mb-4 flex items-center gap-2">
-              <span className="bg-blue-100 text-blue-600 w-6 h-6 rounded-full flex items-center justify-center text-xs">4</span>
               Staging Style
             </h3>
             <div className="space-y-2">
@@ -358,6 +359,28 @@ export const Dashboard: React.FC = () => {
             </div>
           </section>
 
+          <section className="bg-white p-5 rounded-2xl border border-gray-100 shadow-sm">
+            <h3 className="text-sm font-bold text-gray-900 mb-4 flex items-center gap-2">
+              <span className="bg-blue-100 text-blue-600 w-6 h-6 rounded-full flex items-center justify-center text-xs">4</span>
+              Resolution
+            </h3>
+            <div className="grid grid-cols-3 gap-2">
+              {RESOLUTION_OPTIONS.map(opt => (
+                <button
+                  key={opt.id}
+                  onClick={() => setResolution(opt.id)}
+                  className={`flex flex-col items-center justify-center py-2.5 rounded-xl border transition-all ${resolution === opt.id ? 'bg-blue-600 border-blue-600 text-white shadow-lg shadow-blue-600/20' : 'bg-gray-50 border-gray-100 text-gray-600 hover:bg-gray-100'}`}
+                >
+                  <span className="text-xs font-black">{opt.id}</span>
+                  <span className="text-[8px] font-bold opacity-70 uppercase tracking-tighter">{opt.label.split(' ')[1] || 'HD'}</span>
+                </button>
+              ))}
+            </div>
+            <p className="mt-3 text-[10px] text-gray-400 font-medium leading-tight">
+              Higher resolutions provide sharper details but may increase processing time.
+            </p>
+          </section>
+
           {error && (
             <div className="p-4 bg-red-50 border border-red-100 rounded-xl text-xs text-red-600 font-semibold animate-shake shadow-sm">
               <div className="flex gap-2">
@@ -375,9 +398,9 @@ export const Dashboard: React.FC = () => {
             {loading ? (
                <div className="flex items-center justify-center gap-2">
                   <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
-                  AI Staging...
+                  AI Processing...
                </div>
-            ) : 'Generate Design ✨'}
+            ) : 'Generate Staging ✨'}
           </button>
         </div>
 
@@ -409,7 +432,7 @@ export const Dashboard: React.FC = () => {
               <div className="text-center text-gray-400 group cursor-pointer" onClick={() => fileInputRef.current?.click()}>
                 <div className="w-24 h-24 bg-gray-200 rounded-full flex items-center justify-center text-4xl mx-auto mb-6 group-hover:bg-blue-100 group-hover:text-blue-500 transition-all">📸</div>
                 <p className="text-xl font-bold text-gray-900 mb-1">Upload a Property Photo</p>
-                <p className="text-sm max-w-xs mx-auto">Upload an empty room or a cluttered space to see the AI transform it.</p>
+                <p className="text-sm max-w-xs mx-auto">Zero-Hallucination Staging. Original walls, windows, and colors are 100% preserved.</p>
               </div>
             ) : (
               <div className="w-full max-w-4xl">
@@ -419,7 +442,7 @@ export const Dashboard: React.FC = () => {
                       <ImageSlider 
                         beforeImage={selectedImage} 
                         afterImage={generatedImage} 
-                        aspectRatio={selectedAspectRatio === 'Auto' ? undefined : selectedAspectRatio.replace(':', '/')} 
+                        aspectRatio={activeAspectRatio.replace(':', '/')} 
                       />
                       {refining && (
                         <div className="absolute inset-0 bg-white/60 backdrop-blur-[4px] z-[50] flex flex-col items-center justify-center animate-in fade-in duration-300">
@@ -427,16 +450,39 @@ export const Dashboard: React.FC = () => {
                               <div className="w-20 h-20 border-4 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
                               <div className="absolute inset-0 flex items-center justify-center text-2xl">✨</div>
                             </div>
-                            <p className="mt-6 text-blue-900 font-black text-lg bg-white/90 px-6 py-2 rounded-full shadow-xl">Refining with Feedback...</p>
+                            <p className="mt-6 text-blue-900 font-black text-lg bg-white/90 px-6 py-2 rounded-full shadow-xl">Auditing Structural Integrity...</p>
                         </div>
                       )}
                     </div>
+
+                    {showCropPrompt && (
+                      <div className="bg-blue-600 p-6 rounded-2xl shadow-xl shadow-blue-600/20 flex flex-col md:flex-row items-center justify-between gap-4 animate-in slide-in-from-top-4 duration-500">
+                        <div className="text-white">
+                          <p className="font-black text-lg tracking-tight">Transformation complete!</p>
+                          <p className="text-blue-100 text-sm font-medium">Would you like to crop the result or alter its aspect ratio?</p>
+                        </div>
+                        <div className="flex gap-3 shrink-0">
+                          <button 
+                            onClick={() => setShowCropPrompt(false)}
+                            className="px-4 py-2 rounded-xl text-white font-bold hover:bg-white/10 transition-colors text-sm"
+                          >
+                            Keep Original
+                          </button>
+                          <button 
+                            onClick={openCropperForResult}
+                            className="px-6 py-2 bg-white text-blue-600 rounded-xl font-black text-sm shadow-lg hover:bg-gray-50 transition-all active:scale-95"
+                          >
+                            Crop & Alter Ratio
+                          </button>
+                        </div>
+                      </div>
+                    )}
                     
                     {/* Feedback Refinement UI */}
                     <div className="bg-white p-6 rounded-2xl border border-blue-100 shadow-sm animate-in fade-in slide-in-from-bottom-2">
                         <div className="flex items-center gap-2 mb-4">
                             <div className="w-8 h-8 bg-blue-50 rounded-lg flex items-center justify-center text-blue-600">✨</div>
-                            <h4 className="font-bold text-gray-900 text-sm tracking-tight">Refine Staging with AI Feedback</h4>
+                            <h4 className="font-bold text-gray-900 text-sm tracking-tight">Refine Staging (Architecture Locked)</h4>
                         </div>
                         
                         <div className="flex flex-wrap gap-2 mb-4">
@@ -458,7 +504,7 @@ export const Dashboard: React.FC = () => {
                                 value={feedback}
                                 onChange={(e) => setFeedback(e.target.value)}
                                 onKeyDown={(e) => e.key === 'Enter' && handleRefine()}
-                                placeholder="E.g. Change the sofa to leather or add a chandelier..."
+                                placeholder="E.g. Add a rug, change the table, or add plants..."
                                 className="w-full pl-4 pr-14 py-3.5 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all group-hover:border-blue-200 font-medium"
                             />
                             <button
@@ -476,7 +522,7 @@ export const Dashboard: React.FC = () => {
                         onClick={handleReset}
                         className="text-gray-400 text-sm font-bold hover:text-red-500 transition-colors uppercase tracking-widest text-[10px]"
                       >
-                        Discard & Restart
+                        Discard Project
                       </button>
                       <a 
                         href={generatedImage} 
@@ -484,7 +530,7 @@ export const Dashboard: React.FC = () => {
                         className="px-8 py-3.5 rounded-xl bg-green-600 text-white font-bold shadow-lg shadow-green-600/20 hover:bg-green-700 transition-all flex items-center gap-2 active:scale-95"
                       >
                         <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
-                        Download HD Result
+                        Download Result
                       </a>
                     </div>
                   </div>
@@ -506,16 +552,10 @@ export const Dashboard: React.FC = () => {
                               {LOADING_STEPS[loadingStep]}
                             </p>
                             <p className="text-xs text-gray-500 font-bold uppercase tracking-widest">
-                              GEMINI 3 PRO ENGINE • STAGING {selectedStyle.toUpperCase()}
+                              PIXEL-LOCK AUDIT • ADDITIVE COMPOSITING
                             </p>
                           </div>
                         </div>
-                      </div>
-                    )}
-                    
-                    {!loading && (
-                      <div className="absolute inset-0 bg-black/20 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
-                         <span className="bg-white/90 backdrop-blur-sm px-6 py-3 rounded-full text-sm font-bold shadow-2xl border border-gray-100">Ready for Transformation</span>
                       </div>
                     )}
                   </div>
@@ -528,8 +568,8 @@ export const Dashboard: React.FC = () => {
           {history.length > 0 && (
             <div className="bg-white p-6 rounded-3xl border border-gray-100 shadow-sm overflow-hidden">
               <div className="flex items-center justify-between mb-6">
-                <h3 className="text-sm font-black text-gray-900 uppercase tracking-widest">Recent Staging History</h3>
-                <span className="text-[10px] font-bold text-gray-400 bg-gray-100 px-2 py-0.5 rounded-full">LAST 10 EDITS</span>
+                <h3 className="text-sm font-black text-gray-900 uppercase tracking-widest">Recent Activity</h3>
+                <span className="text-[10px] font-bold text-gray-400 bg-gray-100 px-2 py-0.5 rounded-full">HISTORY</span>
               </div>
               <div className="flex gap-5 overflow-x-auto pb-4 scrollbar-hide snap-x">
                 {history.map(item => (

@@ -3,10 +3,11 @@ export enum ViewState {
   HOME = 'HOME',
   DASHBOARD = 'DASHBOARD',
   ACCOUNT = 'ACCOUNT',
-  ADMIN = 'ADMIN'
+  ADMIN = 'ADMIN',
+  SHARED = 'SHARED'
 }
 
-export type PlanTier = 'FREE' | 'PRO' | 'POWER' | 'MANAGED';
+export type PlanTier = 'FREE' | 'PAY_AS_YOU_GO' | 'PRO' | 'POWER' | 'MANAGED' | 'ENTERPRISE';
 export type Currency = 'USD' | 'HKD' | 'EUR' | 'GBP';
 
 export interface User {
