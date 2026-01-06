@@ -2,7 +2,7 @@
 import React, { useState } from 'react';
 import { useUser } from '../contexts/UserContext';
 import { useCurrency } from '../contexts/CurrencyContext';
-import { PricingTier } from '../types';
+import { PricingTier, PlanTier } from '../types';
 
 interface CheckoutModalProps {
   isOpen: boolean;
@@ -15,52 +15,47 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({ isOpen, onClose, p
   const [loading, setLoading] = useState(false);
   const [processingStep, setProcessingStep] = useState('');
   
-  const { user } = useUser();
+  const { user, upgradePlan } = useUser();
   const { formatPrice } = useCurrency();
 
   if (!isOpen || !plan) return null;
 
+  const getCreditsForPlan = (tierId: PlanTier): number => {
+    switch (tierId) {
+      case 'PAY_AS_YOU_GO': return 15;
+      case 'PRO': return 50;
+      case 'POWER': return 100;
+      case 'MANAGED': return -1;
+      case 'ENTERPRISE': return 3000;
+      default: return 3;
+    }
+  };
+
   const handleStripeCheckout = async () => {
     setLoading(true);
-    setProcessingStep('Initializing Stripe Secure Session...');
+    setProcessingStep('Connecting to Stripe...');
     
     try {
       /**
-       * REAL STRIPE IMPLEMENTATION STEPS:
-       * 1. Your server creates a Checkout Session using stripe.checkout.sessions.create({
-       *      line_items: [{ price: 'PRICE_ID_MAPPED_TO_PRODUCT', quantity: 1 }],
-       *      mode: 'subscription', // or 'payment' for PAYG
-       *      success_url: window.location.origin + '?success=true',
-       *      cancel_url: window.location.origin + '?cancel=true',
-       *    });
-       * 2. The server returns the session ID.
-       * 3. The frontend uses stripe.redirectToCheckout({ sessionId }).
+       * Note: A real Stripe integration requires a backend to create a Session.
+       * In this environment, we simulate the "Success" return from Stripe
+       * and update the user's plan in our local database.
        */
-
-      // Placeholder for backend API call
-      // const response = await fetch('/api/create-checkout-session', {
-      //   method: 'POST',
-      //   headers: { 'Content-Type': 'application/json' },
-      //   body: JSON.stringify({ 
-      //     productId: plan.stripePriceId, // e.g. prod_TjXIyXeIUdjXhU
-      //     email: user?.email 
-      //   }),
-      // });
       
-      // if (!response.ok) throw new Error("Payment gateway currently unavailable.");
-      // const { sessionId } = await response.json();
-      
-      // const stripe = (window as any).Stripe('pk_live_your_actual_publishable_key');
-      // await stripe.redirectToCheckout({ sessionId });
-
-      // SIMULATED REDIRECT FOR PREVIEW:
-      await new Promise(r => setTimeout(r, 1200));
-      setProcessingStep('Handshaking with payment gateway...');
+      await new Promise(r => setTimeout(r, 1000));
+      setProcessingStep('Authorizing payment...');
       await new Promise(r => setTimeout(r, 800));
       setProcessingStep(`Syncing ID: ${plan.stripePriceId}`);
       await new Promise(r => setTimeout(r, 1000));
+      setProcessingStep('Upgrading account...');
       
-      // In this simulated environment, we navigate to a success state
+      // Perform actual upgrade in local state
+      const credits = getCreditsForPlan(plan.id);
+      await upgradePlan(plan.id, credits);
+      
+      await new Promise(r => setTimeout(r, 500));
+      
+      // Trigger success callback and close modal
       onSuccess();
       onClose();
     } catch (e: any) {

@@ -97,6 +97,13 @@ const MainContent = () => {
     }
   };
 
+  const handleCheckoutSuccess = () => {
+    setPaymentSuccess(true);
+    setCurrentView(ViewState.ACCOUNT);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+    setTimeout(() => setPaymentSuccess(false), 6000);
+  };
+
   // We only show the setup screen if explicitly detected as false.
   if (hasKey === false) {
     return (
@@ -277,12 +284,7 @@ const MainContent = () => {
         isOpen={isCheckoutModalOpen}
         onClose={() => setIsCheckoutModalOpen(false)}
         plan={selectedPlanForCheckout}
-        onSuccess={() => {
-          // Success is now handled by URL redirection in production,
-          // but for this sandbox, we navigate to Account
-          setCurrentView(ViewState.ACCOUNT);
-          window.scrollTo({ top: 0, behavior: 'smooth' });
-        }}
+        onSuccess={handleCheckoutSuccess}
       />
     </div>
   );
