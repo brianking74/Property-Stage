@@ -15,17 +15,19 @@ export const transformPropertyImage = async (
   imageSize: string = '1K'
 ): Promise<string | null> => {
   try {
-    const apiKey = process.env.API_KEY;
     const isProModel = modelName.includes('pro');
     
-    // For Pro models, we explicitly require the user to have selected a key
+    // Check key right before initialization
+    let apiKey = process.env.API_KEY;
+    
+    // If key is missing, attempt to trigger the selector automatically
     if (!apiKey) {
       const aistudio = (window as any).aistudio;
       if (aistudio) {
         await aistudio.openSelectKey();
-        throw new Error(`The ${isProModel ? 'Pro' : 'Standard'} AI engine requires activation. Please select your API key.`);
+        throw new Error("AI Activation Required: Please select your Google AI API key from the dialog.");
       }
-      throw new Error("Missing API Key. Please link your Google AI account in settings.");
+      throw new Error("Missing API Key: Access to the Google AI Studio bridge is required. Please open this app within AI Studio.");
     }
 
     const ai = new GoogleGenAI({ apiKey });
@@ -96,16 +98,18 @@ export const transformPropertyImage = async (
 
   } catch (error: any) {
     console.error("Gemini Staging Error:", error);
-    // Handle invalid key by prompting for a new one
+    
+    // Specifically handle common bridge/auth errors by triggering the key picker again
     if (
       error.message?.includes("Requested entity was not found") || 
       error.message?.includes("API key not valid") ||
-      error.message?.includes("403")
+      error.message?.includes("403") ||
+      error.message?.includes("401")
     ) {
       const aistudio = (window as any).aistudio;
       if (aistudio) {
         await aistudio.openSelectKey();
-        throw new Error("Your AI session expired or the API Key is invalid. Please select a valid key.");
+        throw new Error("Your session expired. Please re-select your Google AI API key to continue.");
       }
     }
     throw error;

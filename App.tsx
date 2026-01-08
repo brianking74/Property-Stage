@@ -27,6 +27,7 @@ const MainContent = () => {
   const [selectedPlanForCheckout, setSelectedPlanForCheckout] = useState<PricingTier | null>(null);
   const [hasKey, setHasKey] = useState<boolean | null>(null);
   const [paymentSuccess, setPaymentSuccess] = useState(false);
+  const [isCheckingKey, setIsCheckingKey] = useState(true);
   
   // Shared view images
   const [sharedImages, setSharedImages] = useState<{ before: string; after: string } | null>(null);
@@ -63,9 +64,10 @@ const MainContent = () => {
           setHasKey(true);
         }
       } else {
-        // Fallback for non-bridge environments (e.g., local dev)
+        // Fallback for non-bridge environments
         setHasKey(true);
       }
+      setIsCheckingKey(false);
     };
     
     checkKey();
@@ -80,8 +82,9 @@ const MainContent = () => {
     if (aistudio) {
       try {
         await aistudio.openSelectKey();
-        // Assume success to proceed immediately per guidelines
+        // CRITICAL: Assume success to bypass race condition where hasSelectedApiKey returns false immediately after selection
         setHasKey(true);
+        setIsCheckingKey(false);
       } catch (e) {
         console.error("Failed to open key selector", e);
       }
@@ -104,7 +107,17 @@ const MainContent = () => {
     setTimeout(() => setPaymentSuccess(false), 6000);
   };
 
-  // We only show the setup screen if explicitly detected as false.
+  // While checking key, show a subtle loading spinner to prevent UI flashes
+  if (isCheckingKey) {
+    return (
+      <div className="min-h-screen bg-white flex flex-col items-center justify-center p-6">
+        <div className="w-12 h-12 border-4 border-blue-600 border-t-transparent rounded-full animate-spin mb-4"></div>
+        <p className="text-gray-400 font-black text-xs uppercase tracking-widest">Waking AI Engines...</p>
+      </div>
+    );
+  }
+
+  // Enforce Key Selection Screen
   if (hasKey === false) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center p-6">
