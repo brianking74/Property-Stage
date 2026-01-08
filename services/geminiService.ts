@@ -17,17 +17,19 @@ export const transformPropertyImage = async (
   try {
     const isProModel = modelName.includes('pro');
     
-    // Check key right before initialization
+    // Check if key is available in environment
     let apiKey = process.env.API_KEY;
     
-    // If key is missing, attempt to trigger the selector automatically
+    // If key is missing, try to pop the bridge selector immediately
     if (!apiKey) {
       const aistudio = (window as any).aistudio;
       if (aistudio) {
+        // Pop the bridge selector
         await aistudio.openSelectKey();
-        throw new Error("AI Activation Required: Please select your Google AI API key from the dialog.");
+        // Bridge race condition mitigation: we prompt the user to try again
+        throw new Error("AI Activation: Please select your API Key in the window that just opened, then click 'Generate' again.");
       }
-      throw new Error("Missing API Key: Access to the Google AI Studio bridge is required. Please open this app within AI Studio.");
+      throw new Error("The AI Engine is currently disconnected. Please refresh the page within Google AI Studio.");
     }
 
     const ai = new GoogleGenAI({ apiKey });
@@ -56,7 +58,6 @@ export const transformPropertyImage = async (
       Output ONLY the final, high-fidelity composited image.
     `.trim();
 
-    // Prepare config. Standard model (Flash) doesn't support imageSize param.
     const generationConfig: any = {
       imageConfig: {
         aspectRatio: aspectRatio,
@@ -99,7 +100,7 @@ export const transformPropertyImage = async (
   } catch (error: any) {
     console.error("Gemini Staging Error:", error);
     
-    // Specifically handle common bridge/auth errors by triggering the key picker again
+    // Automatic recovery for bridge/auth errors
     if (
       error.message?.includes("Requested entity was not found") || 
       error.message?.includes("API key not valid") ||
@@ -109,7 +110,7 @@ export const transformPropertyImage = async (
       const aistudio = (window as any).aistudio;
       if (aistudio) {
         await aistudio.openSelectKey();
-        throw new Error("Your session expired. Please re-select your Google AI API key to continue.");
+        throw new Error("Your AI session timed out. Please select your API Key again in the picker that appeared.");
       }
     }
     throw error;

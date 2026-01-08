@@ -16,26 +16,20 @@ import { UserProvider, useUser } from './contexts/UserContext';
 import { CurrencyProvider } from './contexts/CurrencyContext';
 import { ViewState, PricingTier } from './types';
 
-// Updated Hero Images using the provided Google Drive IDs
-const HERO_BEFORE = "https://drive.google.com/thumbnail?id=1Q4G1Y-kYaqy76VI3YaRbuWBgj6-7FCQ-&sz=w1920"; // Original Empty Room
-const HERO_AFTER = "https://drive.google.com/thumbnail?id=12wKkaQdnwKxOWLakggCqnMXvMIlHbaLP&sz=w1920";  // Staged Room
+const HERO_BEFORE = "https://drive.google.com/thumbnail?id=1Q4G1Y-kYaqy76VI3YaRbuWBgj6-7FCQ-&sz=w1920";
+const HERO_AFTER = "https://drive.google.com/thumbnail?id=12wKkaQdnwKxOWLakggCqnMXvMIlHbaLP&sz=w1920";
 
 const MainContent = () => {
   const [currentView, setCurrentView] = useState<ViewState>(ViewState.HOME);
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
   const [isCheckoutModalOpen, setIsCheckoutModalOpen] = useState(false);
   const [selectedPlanForCheckout, setSelectedPlanForCheckout] = useState<PricingTier | null>(null);
-  const [hasKey, setHasKey] = useState<boolean | null>(null);
   const [paymentSuccess, setPaymentSuccess] = useState(false);
-  const [isCheckingKey, setIsCheckingKey] = useState(true);
   
-  // Shared view images
   const [sharedImages, setSharedImages] = useState<{ before: string; after: string } | null>(null);
-  
   const { user } = useUser();
 
   useEffect(() => {
-    // Check for shared URL params or Stripe success
     const params = new URLSearchParams(window.location.search);
     const sb = params.get('sb');
     const sa = params.get('sa');
@@ -49,47 +43,9 @@ const MainContent = () => {
     if (success === 'true') {
       setPaymentSuccess(true);
       setTimeout(() => setPaymentSuccess(false), 8000);
-      // Clean up URL
       window.history.replaceState({}, '', window.location.origin);
     }
-
-    const checkKey = async () => {
-      const aistudio = (window as any).aistudio;
-      if (aistudio) {
-        try {
-          const selected = await aistudio.hasSelectedApiKey();
-          setHasKey(selected);
-        } catch (e) {
-          console.warn("Bridge detection failed, defaulting to app access", e);
-          setHasKey(true);
-        }
-      } else {
-        // Fallback for non-bridge environments
-        setHasKey(true);
-      }
-      setIsCheckingKey(false);
-    };
-    
-    checkKey();
-    
-    // Check again after a short delay for slow-loading mobile bridges
-    const timer = setTimeout(checkKey, 1500);
-    return () => clearTimeout(timer);
   }, []);
-
-  const handleSelectKey = async () => {
-    const aistudio = (window as any).aistudio;
-    if (aistudio) {
-      try {
-        await aistudio.openSelectKey();
-        // CRITICAL: Assume success to bypass race condition where hasSelectedApiKey returns false immediately after selection
-        setHasKey(true);
-        setIsCheckingKey(false);
-      } catch (e) {
-        console.error("Failed to open key selector", e);
-      }
-    }
-  };
 
   const handleCheckoutRequest = (plan: PricingTier) => {
     if (!user) {
@@ -106,46 +62,6 @@ const MainContent = () => {
     window.scrollTo({ top: 0, behavior: 'smooth' });
     setTimeout(() => setPaymentSuccess(false), 6000);
   };
-
-  // While checking key, show a subtle loading spinner to prevent UI flashes
-  if (isCheckingKey) {
-    return (
-      <div className="min-h-screen bg-white flex flex-col items-center justify-center p-6">
-        <div className="w-12 h-12 border-4 border-blue-600 border-t-transparent rounded-full animate-spin mb-4"></div>
-        <p className="text-gray-400 font-black text-xs uppercase tracking-widest">Waking AI Engines...</p>
-      </div>
-    );
-  }
-
-  // Enforce Key Selection Screen
-  if (hasKey === false) {
-    return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center p-6">
-        <div className="max-w-md w-full bg-white rounded-[2.5rem] shadow-2xl p-10 text-center border border-gray-100 animate-in zoom-in duration-300">
-          <div className="w-20 h-20 bg-blue-600 rounded-[1.8rem] flex items-center justify-center text-3xl mx-auto mb-8 shadow-2xl shadow-blue-200">✨</div>
-          <h1 className="text-3xl font-black text-gray-900 mb-4 tracking-tight">AI Activation</h1>
-          <p className="text-gray-500 mb-10 font-medium leading-relaxed">
-            PropertyStage uses the high-end Gemini 3 Pro engine. To begin staging, please link your Google AI API key.
-          </p>
-          <div className="space-y-5">
-            <button 
-              onClick={handleSelectKey}
-              className="w-full bg-blue-600 hover:bg-blue-700 text-white py-5 rounded-2xl font-black text-lg shadow-xl shadow-blue-600/20 transition-all active:scale-95"
-            >
-              Select API Key
-            </button>
-            <a 
-              href="https://ai.google.dev/gemini-api/docs/billing" 
-              target="_blank" 
-              className="block text-sm text-blue-600 font-bold hover:underline"
-            >
-              Learn about billing & keys
-            </a>
-          </div>
-        </div>
-      </div>
-    );
-  }
 
   const renderView = () => {
     switch(currentView) {

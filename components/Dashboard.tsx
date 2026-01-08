@@ -78,11 +78,9 @@ export const Dashboard: React.FC = () => {
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
   const [generatedImage, setGeneratedImage] = useState<string | null>(null);
   
-  // Feedback states
   const [feedback, setFeedback] = useState('');
   const [refining, setRefining] = useState(false);
   
-  // Undo/Redo Stacks
   const [pastResults, setPastResults] = useState<string[]>([]);
   const [futureResults, setFutureResults] = useState<string[]>([]);
   
@@ -144,6 +142,14 @@ export const Dashboard: React.FC = () => {
     reader.readAsDataURL(file);
   };
 
+  const handleActivateAI = async () => {
+    const aistudio = (window as any).aistudio;
+    if (aistudio) {
+      setError(null);
+      await aistudio.openSelectKey();
+    }
+  };
+
   const handleProcess = async () => {
     if (!selectedImage) return;
     if (user && user.credits === 0) {
@@ -158,8 +164,6 @@ export const Dashboard: React.FC = () => {
     try {
       const styleConfig = STYLES.find(s => s.id === selectedStyle);
       const prompt = styleConfig?.promptPrefix || '';
-      
-      // Determine model based on resolution. 1K uses Flash (non-premium), others use Pro.
       const modelToUse = (resolution === '1K') ? 'gemini-2.5-flash-image' : 'gemini-3-pro-image-preview';
       
       const result = await transformPropertyImage(
@@ -321,7 +325,6 @@ export const Dashboard: React.FC = () => {
       )}
 
       <div className="flex flex-col lg:flex-row gap-8">
-        {/* Left: Settings Panel */}
         <div className="w-full lg:w-80 shrink-0 space-y-6">
           <section className="bg-white p-5 rounded-2xl border border-gray-100 shadow-sm">
             <h3 className="text-sm font-bold text-gray-900 mb-4 flex items-center gap-2">
@@ -423,22 +426,25 @@ export const Dashboard: React.FC = () => {
                 );
               })}
             </div>
-            {isFreeUser && (
-              <p className="mt-3 text-[10px] text-blue-600 font-bold leading-tight flex items-center gap-1">
-                <span>⭐</span> Upgrade to Pro for 2K/4K resolution and all styles.
-              </p>
-            )}
             <p className="mt-2 text-[10px] text-gray-400 font-medium leading-tight">
-              {resolution === '1K' ? 'Standard engine active. Faster processing.' : 'Pro engine active. Higher fidelity & detail.'}
+              {resolution === '1K' ? 'Standard engine active.' : 'Pro engine active. Higher fidelity.'}
             </p>
           </section>
 
           {error && (
-            <div className="p-4 bg-red-50 border border-red-100 rounded-xl text-xs text-red-600 font-semibold animate-shake shadow-sm">
-              <div className="flex gap-2">
+            <div className="p-4 bg-red-50 border border-red-200 rounded-xl animate-shake shadow-sm flex flex-col gap-3">
+              <div className="flex gap-2 text-xs text-red-600 font-semibold">
                 <span>⚠️</span>
                 <span>{error}</span>
               </div>
+              {error.includes("Activation") && (
+                <button 
+                  onClick={handleActivateAI}
+                  className="w-full py-2 bg-red-600 text-white text-[10px] font-black uppercase tracking-widest rounded-lg hover:bg-red-700 transition-colors shadow-lg shadow-red-600/20"
+                >
+                  Reconnect AI Bridge
+                </button>
+              )}
             </div>
           )}
 
@@ -456,7 +462,6 @@ export const Dashboard: React.FC = () => {
           </button>
         </div>
 
-        {/* Right: Main Canvas */}
         <div className="flex-1 space-y-6">
           <div className="bg-gray-100 rounded-3xl p-6 min-h-[500px] border border-gray-200 flex flex-col items-center justify-center relative overflow-hidden transition-all duration-500">
             {selectedImage && (
@@ -484,7 +489,7 @@ export const Dashboard: React.FC = () => {
               <div className="text-center text-gray-400 group cursor-pointer" onClick={() => fileInputRef.current?.click()}>
                 <div className="w-24 h-24 bg-gray-200 rounded-full flex items-center justify-center text-4xl mx-auto mb-6 group-hover:bg-blue-100 group-hover:text-blue-500 transition-all">📸</div>
                 <p className="text-xl font-bold text-gray-900 mb-1">Upload a Property Photo</p>
-                <p className="text-sm max-w-xs mx-auto">Zero-Hallucination Staging. Original walls, windows, and colors are 100% preserved.</p>
+                <p className="text-sm max-w-xs mx-auto">Zero-Hallucination Staging. Original architecture is 100% preserved.</p>
               </div>
             ) : (
               <div className="w-full max-w-4xl">
@@ -511,26 +516,15 @@ export const Dashboard: React.FC = () => {
                       <div className="bg-blue-600 p-6 rounded-2xl shadow-xl shadow-blue-600/20 flex flex-col md:flex-row items-center justify-between gap-4 animate-in slide-in-from-top-4 duration-500">
                         <div className="text-white">
                           <p className="font-black text-lg tracking-tight">Transformation complete!</p>
-                          <p className="text-blue-100 text-sm font-medium">Would you like to crop the result or alter its aspect ratio?</p>
+                          <p className="text-blue-100 text-sm font-medium">Crop or alter aspect ratio?</p>
                         </div>
                         <div className="flex gap-3 shrink-0">
-                          <button 
-                            onClick={() => setShowCropPrompt(false)}
-                            className="px-4 py-2 rounded-xl text-white font-bold hover:bg-white/10 transition-colors text-sm"
-                          >
-                            Keep Original
-                          </button>
-                          <button 
-                            onClick={openCropperForResult}
-                            className="px-6 py-2 bg-white text-blue-600 rounded-xl font-black text-sm shadow-lg hover:bg-gray-50 transition-all active:scale-95"
-                          >
-                            Crop & Alter Ratio
-                          </button>
+                          <button onClick={() => setShowCropPrompt(false)} className="px-4 py-2 rounded-xl text-white font-bold hover:bg-white/10 transition-colors text-sm">Keep Original</button>
+                          <button onClick={openCropperForResult} className="px-6 py-2 bg-white text-blue-600 rounded-xl font-black text-sm shadow-lg hover:bg-gray-50 transition-all active:scale-95">Crop & Alter Ratio</button>
                         </div>
                       </div>
                     )}
                     
-                    {/* Feedback Refinement UI */}
                     <div className="bg-white p-6 rounded-2xl border border-blue-100 shadow-sm animate-in fade-in slide-in-from-bottom-2">
                         <div className="flex items-center gap-2 mb-4">
                             <div className="w-8 h-8 bg-blue-50 rounded-lg flex items-center justify-center text-blue-600">✨</div>
@@ -570,17 +564,8 @@ export const Dashboard: React.FC = () => {
                     </div>
 
                     <div className="flex justify-between items-center px-2">
-                      <button 
-                        onClick={handleReset}
-                        className="text-gray-400 text-sm font-bold hover:text-red-500 transition-colors uppercase tracking-widest text-[10px]"
-                      >
-                        Discard Project
-                      </button>
-                      <a 
-                        href={generatedImage} 
-                        download="staged-property.jpg"
-                        className="px-8 py-3.5 rounded-xl bg-green-600 text-white font-bold shadow-lg shadow-green-600/20 hover:bg-green-700 transition-all flex items-center gap-2 active:scale-95"
-                      >
+                      <button onClick={handleReset} className="text-gray-400 text-sm font-bold hover:text-red-500 transition-colors uppercase tracking-widest text-[10px]">Discard Project</button>
+                      <a href={generatedImage} download="staged-property.jpg" className="px-8 py-3.5 rounded-xl bg-green-600 text-white font-bold shadow-lg shadow-green-600/20 hover:bg-green-700 transition-all flex items-center gap-2 active:scale-95">
                         <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
                         Download Result
                       </a>
@@ -589,24 +574,13 @@ export const Dashboard: React.FC = () => {
                 ) : (
                   <div className="relative rounded-2xl overflow-hidden shadow-2xl border-4 border-white group">
                     <img src={selectedImage} alt="Original" className="w-full h-auto" />
-                    
                     {loading && (
                       <div className="absolute inset-0 bg-white/80 backdrop-blur-sm z-50 flex flex-col items-center justify-center p-8 text-center animate-in fade-in duration-300">
                         <div className="w-full max-w-xs space-y-6">
                           <div className="relative h-2 bg-gray-200 rounded-full overflow-hidden">
-                            <div 
-                              className="absolute inset-y-0 left-0 bg-blue-600 transition-all duration-1000 ease-out shadow-[0_0_10px_rgba(37,99,235,0.5)]" 
-                              style={{ width: `${((loadingStep + 1) / LOADING_STEPS.length) * 100}%` }}
-                            ></div>
+                            <div className="absolute inset-y-0 left-0 bg-blue-600 transition-all duration-1000 ease-out shadow-[0_0_10px_rgba(37,99,235,0.5)]" style={{ width: `${((loadingStep + 1) / LOADING_STEPS.length) * 100}%` }}></div>
                           </div>
-                          <div className="space-y-2">
-                            <p className="text-xl font-black text-gray-900 animate-pulse tracking-tight">
-                              {LOADING_STEPS[loadingStep]}
-                            </p>
-                            <p className="text-xs text-gray-500 font-bold uppercase tracking-widest">
-                              {resolution === '1K' ? 'STANDARD PIXEL-LOCK AUDIT' : 'PRO ADDITIVE COMPOSITING'}
-                            </p>
-                          </div>
+                          <p className="text-xl font-black text-gray-900 animate-pulse tracking-tight">{LOADING_STEPS[loadingStep]}</p>
                         </div>
                       </div>
                     )}
@@ -616,7 +590,6 @@ export const Dashboard: React.FC = () => {
             )}
           </div>
 
-          {/* History Tray */}
           {history.length > 0 && (
             <div className="bg-white p-6 rounded-3xl border border-gray-100 shadow-sm overflow-hidden">
               <div className="flex items-center justify-between mb-6">
@@ -625,11 +598,7 @@ export const Dashboard: React.FC = () => {
               </div>
               <div className="flex gap-5 overflow-x-auto pb-4 scrollbar-hide snap-x">
                 {history.map(item => (
-                  <div 
-                    key={item.id}
-                    onClick={() => handleHistoryItemClick(item)}
-                    className="w-36 shrink-0 cursor-pointer group snap-start"
-                  >
+                  <div key={item.id} onClick={() => handleHistoryItemClick(item)} className="w-36 shrink-0 cursor-pointer group snap-start">
                     <div className="aspect-[4/3] rounded-2xl overflow-hidden border-2 border-transparent group-hover:border-blue-500 shadow-sm transition-all group-hover:shadow-xl group-hover:-translate-y-1 bg-gray-100">
                       <img src={item.transformed} className="w-full h-full object-cover" />
                     </div>
