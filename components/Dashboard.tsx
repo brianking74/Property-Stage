@@ -68,16 +68,15 @@ const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
 const ALLOWED_TYPES = ['image/jpeg', 'image/png', 'image/webp'];
 
 const RESOLUTION_OPTIONS = [
-  { id: '1K', label: '1K HD', desc: 'Standard clarity' },
-  { id: '2K', label: '2K Pro', desc: 'Listing quality' },
-  { id: '4K', label: '4K Ultra', desc: 'Premium print' },
+  { id: '1K', label: '1K Standard', desc: 'Standard AI engine' },
+  { id: '2K', label: '2K Pro', desc: 'Premium Pro engine' },
+  { id: '4K', label: '4K Ultra', desc: 'Premium Pro engine' },
 ];
 
 export const Dashboard: React.FC = () => {
-  const { user, deductCredit } = useUser();
+  const { user, history, addToHistory, deductCredit } = useUser();
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
   const [generatedImage, setGeneratedImage] = useState<string | null>(null);
-  const [history, setHistory] = useState<GenerationHistory[]>([]);
   
   // Feedback states
   const [feedback, setFeedback] = useState('');
@@ -102,6 +101,8 @@ export const Dashboard: React.FC = () => {
   const [showCropPrompt, setShowCropPrompt] = useState(false);
   
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const isFreeUser = user?.plan === 'FREE';
 
   useEffect(() => {
     let interval: any;
@@ -158,12 +159,15 @@ export const Dashboard: React.FC = () => {
       const styleConfig = STYLES.find(s => s.id === selectedStyle);
       const prompt = styleConfig?.promptPrefix || '';
       
+      // Determine model based on resolution. 1K uses Flash (non-premium), others use Pro.
+      const modelToUse = (resolution === '1K') ? 'gemini-2.5-flash-image' : 'gemini-3-pro-image-preview';
+      
       const result = await transformPropertyImage(
         selectedImage, 
         prompt, 
         activeAspectRatio, 
         selectedRoom,
-        'gemini-3-pro-image-preview', 
+        modelToUse, 
         resolution
       );
       
@@ -182,7 +186,7 @@ export const Dashboard: React.FC = () => {
           style: styleConfig?.label || 'Custom',
           timestamp: Date.now()
         };
-        setHistory(prev => [newEntry, ...prev].slice(0, 10));
+        addToHistory(newEntry);
         if (user) deductCredit();
       }
     } catch (err: any) {
@@ -201,12 +205,14 @@ export const Dashboard: React.FC = () => {
     setShowCropPrompt(false);
 
     try {
+      const modelToUse = (resolution === '1K') ? 'gemini-2.5-flash-image' : 'gemini-3-pro-image-preview';
+      
       const result = await transformPropertyImage(
         generatedImage, 
         `Add requested item: ${instruction}. MANDATORY: Clone every single background pixel exactly. Do not re-render walls or change ceiling color.`, 
         activeAspectRatio, 
         selectedRoom,
-        'gemini-3-pro-image-preview', 
+        modelToUse, 
         resolution
       );
 
@@ -216,6 +222,15 @@ export const Dashboard: React.FC = () => {
         setGeneratedImage(result);
         setShowCropPrompt(true);
         setFeedback('');
+        
+        const newEntry: GenerationHistory = {
+          id: Date.now().toString(),
+          original: selectedImage!,
+          transformed: result,
+          style: STYLES.find(s => s.id === selectedStyle)?.label || 'Refinement',
+          timestamp: Date.now()
+        };
+        addToHistory(newEntry);
         if (user) deductCredit();
       }
     } catch (err: any) {
@@ -289,6 +304,7 @@ export const Dashboard: React.FC = () => {
     setPastResults([]);
     setFutureResults([]);
     setShowCropPrompt(false);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
   return (
@@ -343,19 +359,33 @@ export const Dashboard: React.FC = () => {
               Staging Style
             </h3>
             <div className="space-y-2">
-              {STYLES.map(style => (
-                <button
-                  key={style.id}
-                  onClick={() => setSelectedStyle(style.id)}
-                  className={`w-full flex items-center gap-3 p-3 rounded-xl border transition-all text-left group ${selectedStyle === style.id ? 'border-blue-600 bg-blue-50 ring-1 ring-blue-600 shadow-sm' : 'border-gray-100 hover:bg-gray-50'}`}
-                >
-                  <span className={`text-2xl transition-transform ${selectedStyle === style.id ? 'scale-110' : 'group-hover:scale-110'}`}>{style.icon}</span>
-                  <div>
-                    <div className="text-sm font-bold text-gray-900">{style.label}</div>
-                    <div className="text-[10px] text-gray-500 leading-tight">{style.description}</div>
-                  </div>
-                </button>
-              ))}
+              {STYLES.map(style => {
+                const isRestricted = isFreeUser && !['modern', 'declutter'].includes(style.id);
+                return (
+                  <button
+                    key={style.id}
+                    onClick={() => !isRestricted && setSelectedStyle(style.id)}
+                    disabled={isRestricted}
+                    className={`w-full flex items-center gap-3 p-3 rounded-xl border transition-all text-left group relative ${
+                      isRestricted 
+                        ? 'bg-gray-50 border-gray-100 cursor-not-allowed opacity-60 grayscale' 
+                        : selectedStyle === style.id 
+                          ? 'border-blue-600 bg-blue-50 ring-1 ring-blue-600 shadow-sm' 
+                          : 'border-gray-100 hover:bg-gray-50'
+                    }`}
+                  >
+                    <span className={`text-2xl transition-transform ${selectedStyle === style.id ? 'scale-110' : !isRestricted ? 'group-hover:scale-110' : ''}`}>{style.icon}</span>
+                    <div>
+                      <div className="text-sm font-bold text-gray-900 flex items-center gap-2">
+                        {style.label}
+                        {isRestricted && <span className="text-[8px] bg-gray-200 text-gray-500 px-1.5 py-0.5 rounded uppercase font-black tracking-widest">PRO</span>}
+                      </div>
+                      <div className="text-[10px] text-gray-500 leading-tight">{style.description}</div>
+                    </div>
+                    {isRestricted && <div className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400">🔒</div>}
+                  </button>
+                );
+              })}
             </div>
           </section>
 
@@ -365,19 +395,41 @@ export const Dashboard: React.FC = () => {
               Resolution
             </h3>
             <div className="grid grid-cols-3 gap-2">
-              {RESOLUTION_OPTIONS.map(opt => (
-                <button
-                  key={opt.id}
-                  onClick={() => setResolution(opt.id)}
-                  className={`flex flex-col items-center justify-center py-2.5 rounded-xl border transition-all ${resolution === opt.id ? 'bg-blue-600 border-blue-600 text-white shadow-lg shadow-blue-600/20' : 'bg-gray-50 border-gray-100 text-gray-600 hover:bg-gray-100'}`}
-                >
-                  <span className="text-xs font-black">{opt.id}</span>
-                  <span className="text-[8px] font-bold opacity-70 uppercase tracking-tighter">{opt.label.split(' ')[1] || 'HD'}</span>
-                </button>
-              ))}
+              {RESOLUTION_OPTIONS.map(opt => {
+                const isRestricted = isFreeUser && opt.id !== '1K';
+                return (
+                  <button
+                    key={opt.id}
+                    onClick={() => !isRestricted && setResolution(opt.id)}
+                    disabled={isRestricted}
+                    className={`flex flex-col items-center justify-center py-2.5 rounded-xl border transition-all relative ${
+                      isRestricted
+                        ? 'bg-gray-50 border-gray-100 text-gray-300 cursor-not-allowed'
+                        : resolution === opt.id 
+                          ? 'bg-blue-600 border-blue-600 text-white shadow-lg shadow-blue-600/20' 
+                          : 'bg-gray-50 border-gray-100 text-gray-600 hover:bg-gray-100'
+                    }`}
+                  >
+                    <span className="text-xs font-black">{opt.id}</span>
+                    <span className="text-[8px] font-bold opacity-70 uppercase tracking-tighter">
+                      {isRestricted ? 'LOCKED' : (opt.label.split(' ')[1] || 'HD')}
+                    </span>
+                    {isRestricted && (
+                      <div className="absolute -top-1 -right-1 bg-gray-200 text-gray-500 w-4 h-4 rounded-full flex items-center justify-center text-[8px] border border-white">
+                        🔒
+                      </div>
+                    )}
+                  </button>
+                );
+              })}
             </div>
-            <p className="mt-3 text-[10px] text-gray-400 font-medium leading-tight">
-              Higher resolutions provide sharper details but may increase processing time.
+            {isFreeUser && (
+              <p className="mt-3 text-[10px] text-blue-600 font-bold leading-tight flex items-center gap-1">
+                <span>⭐</span> Upgrade to Pro for 2K/4K resolution and all styles.
+              </p>
+            )}
+            <p className="mt-2 text-[10px] text-gray-400 font-medium leading-tight">
+              {resolution === '1K' ? 'Standard engine active. Faster processing.' : 'Pro engine active. Higher fidelity & detail.'}
             </p>
           </section>
 
@@ -482,7 +534,7 @@ export const Dashboard: React.FC = () => {
                     <div className="bg-white p-6 rounded-2xl border border-blue-100 shadow-sm animate-in fade-in slide-in-from-bottom-2">
                         <div className="flex items-center gap-2 mb-4">
                             <div className="w-8 h-8 bg-blue-50 rounded-lg flex items-center justify-center text-blue-600">✨</div>
-                            <h4 className="font-bold text-gray-900 text-sm tracking-tight">Refine Staging (Architecture Locked)</h4>
+                            <h4 className="font-bold text-gray-900 text-sm tracking-tight">Refine Staging ({resolution === '1K' ? 'Standard' : 'Pro'} Engine)</h4>
                         </div>
                         
                         <div className="flex flex-wrap gap-2 mb-4">
@@ -552,7 +604,7 @@ export const Dashboard: React.FC = () => {
                               {LOADING_STEPS[loadingStep]}
                             </p>
                             <p className="text-xs text-gray-500 font-bold uppercase tracking-widest">
-                              PIXEL-LOCK AUDIT • ADDITIVE COMPOSITING
+                              {resolution === '1K' ? 'STANDARD PIXEL-LOCK AUDIT' : 'PRO ADDITIVE COMPOSITING'}
                             </p>
                           </div>
                         </div>
