@@ -3,8 +3,6 @@ import { GoogleGenAI } from "@google/genai";
 
 /**
  * Transforms a property image using either Standard (Flash) or Premium (Pro) models.
- * Standard (1K) uses gemini-2.5-flash-image.
- * Premium (2K/4K) uses gemini-3-pro-image-preview.
  */
 export const transformPropertyImage = async (
   base64Image: string,
@@ -16,20 +14,16 @@ export const transformPropertyImage = async (
 ): Promise<string | null> => {
   try {
     const isProModel = modelName.includes('pro');
+    const apiKey = process.env.API_KEY;
     
-    // Check if key is available in environment
-    let apiKey = process.env.API_KEY;
-    
-    // If key is missing, try to pop the bridge selector immediately
     if (!apiKey) {
       const aistudio = (window as any).aistudio;
       if (aistudio) {
-        // Pop the bridge selector
+        // Automatically try to open the key selector instead of failing with a technical message
         await aistudio.openSelectKey();
-        // Bridge race condition mitigation: we prompt the user to try again
-        throw new Error("AI Activation: Please select your API Key in the window that just opened, then click 'Generate' again.");
+        throw new Error("Finalizing secure connection... Please confirm the request in the dialog and click Generate again.");
       }
-      throw new Error("The AI Engine is currently disconnected. Please refresh the page within Google AI Studio.");
+      throw new Error("Unable to start the staging process. Please ensure the app is properly connected to the service.");
     }
 
     const ai = new GoogleGenAI({ apiKey });
@@ -37,25 +31,13 @@ export const transformPropertyImage = async (
 
     const refinedPrompt = `
       CRITICAL ROLE: You are a Professional Architectural Photo Compositor.
-      
       CORE DIRECTIVE: You MUST NOT change the room's physical structure. The input photo is a MASTER TEMPLATE.
-      
-      STAGE 1: ARCHITECTURAL CLONING (ZERO DRIFT)
-      - Identify all walls, ceilings, windows, and structural pillars.
-      - CLONE these pixels exactly. The position, thickness, and boundary of every wall must be PIXEL-PERFECT to the source.
-      - NEVER modify the windows. The frames, glass, and skyline view must remain 100% UNCHANGED.
-      
-      STAGE 2: CHROMA-LOCK (NO COLOR SHIFT)
-      - Extract the exact color and texture of the ceiling and walls from the source. Do NOT repaint them.
-      
-      STAGE 3: ADDITIVE VIRTUAL STAGING
-      - ONLY add furniture and decor in the style: ${prompt}.
-      - Enhance image clarity and sharpness.
-      
+      STAGE 1: ARCHITECTURAL CLONING (ZERO DRIFT) - Identify all walls, ceilings, windows, and structural pillars. CLONE these pixels exactly.
+      STAGE 2: CHROMA-LOCK (NO COLOR SHIFT) - Keep wall and ceiling colors 100% UNCHANGED.
+      STAGE 3: ADDITIVE VIRTUAL STAGING - ONLY add furniture and decor in style: ${prompt}.
       ROOM CONTEXT: ${roomType}
       USER REQUEST: ${prompt}
-      
-      Output ONLY the final, high-fidelity composited image.
+      Output ONLY the final image.
     `.trim();
 
     const generationConfig: any = {
@@ -95,22 +77,15 @@ export const transformPropertyImage = async (
       }
     }
 
-    throw new Error("The AI engine failed to return an image. Please try again with a simpler request.");
-
+    throw new Error("The process failed to generate a result. Please try again.");
   } catch (error: any) {
-    console.error("Gemini Staging Error:", error);
-    
-    // Automatic recovery for bridge/auth errors
-    if (
-      error.message?.includes("Requested entity was not found") || 
-      error.message?.includes("API key not valid") ||
-      error.message?.includes("403") ||
-      error.message?.includes("401")
-    ) {
+    console.error("Staging Error:", error);
+    // If it's an auth error, trigger the key picker silently
+    if (error.message?.includes("403") || error.message?.includes("401") || error.message?.includes("entity was not found")) {
       const aistudio = (window as any).aistudio;
       if (aistudio) {
         await aistudio.openSelectKey();
-        throw new Error("Your AI session timed out. Please select your API Key again in the picker that appeared.");
+        throw new Error("Connection refresh required. Please try clicking Generate again.");
       }
     }
     throw error;
